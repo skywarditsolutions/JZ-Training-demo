@@ -4,7 +4,6 @@ import os
 import re
 from typing import Optional
 from contextlib import AsyncExitStack
-import boto3
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -12,6 +11,7 @@ from mcp.client.stdio import stdio_client
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
 
+from haystack.components.builders.prompt_builder import PromptBuilder
 
 load_dotenv()
 
@@ -22,6 +22,7 @@ class MCPClient:
     def __init__(self):
         self.exit_stack = AsyncExitStack()
         self.chat = AnthropicBedrock()
+        self.tools = []
     
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
@@ -31,7 +32,7 @@ class MCPClient:
         if not is_python:
             raise ValueError("Server script must be a Python script (.py)")
         
-        # hardcoded python for now
+        # only python for now
         server_params = StdioServerParameters(
             command="python", args=[server_script_path], env=None
         )
@@ -43,19 +44,28 @@ class MCPClient:
         await self.session.initialize()
 
         response = await self.session.list_tools()
-        print(f"response: {response}")
-        tools = response.tools
-        print(f"\nconnected to server with tools: {[tool.name for tool in tools]}")
+        self.tools = response.tools
+        print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
     
     def tool_call(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None):
+        tool_call = self.session.tool_call(document_content, user_message, messages)
+        return tool_call
+    
+    def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         if not messages:
             messages = []
-            system_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
-            messages.append({"role": "system", "content": system_prompt})
-            user_prompt = f"Document content: {document_content}\n\nUser message: {user_message}"
-            messages.append({"role": "user", "content": user_prompt})
-        else:
-            messages.append({"role": "user", "content": user_message})
+            # claude SDK doesn't let you do system prompt?
+            print(self.tools)
+            system_prompt = "You are a helpful assistant, you have the following tools available: " + ", ".join([tool.name for tool in self.tools])
+            messages.append({"role": "user", "content": system_prompt}) # passing in as user message
+
+        content = ""
+        if user_message:
+            content = f"Document content: {document_content}\n\nUser message: {user_message}"
+        else: 
+            content = f"Document content: {document_content}"
+        
+        messages.append({"role": "user", "content": content})
 
         response = self.chat.messages.create(
                     model=model_name,
@@ -63,18 +73,25 @@ class MCPClient:
             messages=messages
         )
         return response.content
-    
-    def send_message(self, document_content: str,user_message: Optional[str] = None, messages: Optional[list[str]] = None):
-        return self.tool_call(document_content, user_message, messages)
+
+    def parse_tool_call(self, response):
+        print(response)
     
     def chat_loop(self):
         messages = []
+        user_message = input("User: ")
+        document_content = input("Document: ") # TODO make doc uploader + extractor
         while True:
-            user_message = input("User: ")
-            document_content = input("Document: ") # TODO make doc uploader + extractor
+            # initial LLM call
             response = self.send_message(user_message, document_content, messages)
             print(response)
-            messages.append({"role": "assistant", "content": response})
+            tool_call = self.parse_tool_call(response)
+            if tool_call:
+                tool_response = self.tool_call(tool_call)
+                print(tool_response)
+
+            
+            user_message = input("User: ")
     
     async def cleanup(self):
         await self.exit_stack.aclose()

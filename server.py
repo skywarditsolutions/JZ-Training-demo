@@ -1,10 +1,10 @@
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
-import PyPDF2
+#import PyPDF2
 import io
 from typing import Any
-import asyncio
-import httpx
+#import asyncio
+#import httpx
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
@@ -24,26 +24,31 @@ mcp = FastMCP("Summarizer")
 
 
 @mcp.tool()
-async def analyze_content(document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None) -> str:
-    """Analyze text and optional PDF content"""
+async def summarize_document(document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None) -> str:
+    """Analyze PDF content, should this have message history?"""
+
     if not messages:
         messages = []
+        # claude SDK doesn't let you do system prompt?
         system_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
-        messages.append({"role": "system", "content": system_prompt})
-        user_prompt = f"Document content: {document_content}\n\nUser message: {user_message}"
-        messages.append({"role": "user", "content": user_prompt})
-    else:
-        messages.append({"role": "user", "content": user_message})
+        messages.append({"role": "user", "content": system_prompt}) # passing in as user message
+
+    content = ""
+    if user_message:
+        content = f"Document content: {document_content}\n\nUser message: {user_message}"
+    else: 
+        content = f"Document content: {document_content}"
+    
+    messages.append({"role": "user", "content": content})
 
     response = chat.messages.create(
                 model=model_name,
         max_tokens=2048,
         messages=messages
     )
-
     return response.content
 
-#  @mcp.list_tools()
+#  @mcp.list_tools() not necessary for fastMCP
 async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(

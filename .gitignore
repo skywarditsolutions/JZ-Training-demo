@@ -18,6 +18,6 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+venv
 .env
 uv.lock
