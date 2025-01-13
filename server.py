@@ -32,7 +32,13 @@ mcp = FastMCP("Summarizer")
 
 @mcp.tool()
 async def summarize_document(document_content: str) -> str:
-    """Analyze Text content"""
+    """Analyze Text content
+    Args:
+        document_content: The content of the document to analyze
+
+    Returns:
+        LLM response obj with summary of the document
+    """
 
     messages = []
     # claude SDK doesn't let you do system prompt?
@@ -40,7 +46,7 @@ async def summarize_document(document_content: str) -> str:
     user_prompt += f"\n\nDocument content: {document_content}"
     messages.append({"role": "user", "content": user_prompt}) # passing in as user message
     
-
+    # send messages to the LLM
     response = chat.messages.create(
                 model=model_name,
         max_tokens=2048,
@@ -60,6 +66,9 @@ async def get_current_datetime() -> str:
 # modified from fastMCP example
 #  @mcp.list_tools() not necessary for fastMCP
 async def list_tools() -> list[types.Tool]:
+    """
+    List the tools available to the LLM
+    """
     return [
         types.Tool(
             name="summarize_document",

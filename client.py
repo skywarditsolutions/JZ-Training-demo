@@ -49,8 +49,23 @@ class MCPClient:
 
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
+            This method sets up a connection to a Python-based MCP server by:
+        1. Validating the server script file extension
+        2. Creating a stdio transport connection
+        3. Initializing a client session
+        4. Retrieving and reformatting available tools
+
+        Args:
+            server_script_path: Path to the Python server script file (.py extension)
+
+        Raises:
+            ValueError: If the provided script path doesn't end with .py extension
+            
+        Returns:
+            None: Updates instance attributes (stdio, write, session, tools) as side effects
+        """
         
-        Args: server_script_path (str): The path to the python server script (.py)"""
+        # validate the server script is a python script
         is_python = server_script_path.endswith(".py")
         if not is_python:
             raise ValueError("Server script must be a Python script (.py)")
@@ -72,11 +87,26 @@ class MCPClient:
         #self.tools = test_dummy_tools()
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
+    async def call_summarize_document_tool(self, LLM_tool_call):
+        """
+        This method handles the tool call from the LLM and passes it to the server
+        Args:
+            LLM_tool_call: The tool call from the LLM
+            
+        Returns:
+            tool_call: The tool call response from the MCP server
+        """
+        print("LLM tool call: ")
+        print(LLM_tool_call)
+        # MCP library changes the tool name to kebab case, so we need to reformat it so the server can use it
+        tool_name = to_camel_case(LLM_tool_call["name"])
+        
+        # call tool over the MCP connection established in connect_to_server, takes in tool name and args
+        tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
     def tool_call(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None):
         tool_call = self.session.tool_call(document_content, user_message, messages)
         return tool_call
-    
-<<<<<<< HEAD
+
     def get_current_datetime(self, request_type="both", timezone=None):
         """
         Get the current date and/or time in the specified timezone.
@@ -203,15 +233,22 @@ class MCPClient:
         mode = "24-hour" if self.time_format_24hr else "12-hour"
         print(f"✅ Time format switched to {mode} mode.")
 
-=======
-    
-    
->>>>>>> cbdab44 (commitTest)
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+        """
+        This method sends a message to the LLM and returns the response
+
+        Args:
+            document_content: The content of the document to be summarized
+            (optional) user_message: The user's message to the LLM
+            (optional) messages: The list of messages of the chat history
+
+        Returns:
+            response: The response from the LLM
+        """
+        # if no messages, create a new list and inital chat message
         print(self.tools)
         if not messages:
             messages = []
-<<<<<<< HEAD
 
         if self.is_time_or_date_request(user_message):
             # Detect timezone based on user message
@@ -227,10 +264,10 @@ class MCPClient:
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt})
-=======
             system_prompt = "We are testing a tool calling model, reply with a choice of available tools."
             messages.append({"role": "user", "content": system_prompt}) # passing in as user message
 
+        # TODO handle repeated chat messages
         content = ""
         if user_message:
             content = f"Document content: {document_content}\n\nUser message: {user_message}"
@@ -238,8 +275,8 @@ class MCPClient:
             content = f"Document content: {document_content}"
         
         messages.append({"role": "user", "content": content})
->>>>>>> cbdab44 (commitTest)
 
+        # send messages to the LLM
         response = self.chat.messages.create(
             model=model_name,
             max_tokens=2048,
@@ -250,8 +287,7 @@ class MCPClient:
 
     def parse_tool_call(self, response):
         print(response)
-    
-<<<<<<< HEAD
+
     def process_LLM_response(self, response):
         pass
 
@@ -259,47 +295,45 @@ class MCPClient:
     def check_tool_call(self, response):
         """
         Check if the response contains a tool call and extract the relevant information.
+        Args:
+            response: The response from the LLM
+
+        Returns:
+            tool_call: The tool call response from the server
         """
         try:
             # Skip parsing if response is already in dict format (time/date)
             if isinstance(response, dict) and "content" in response:
                  return None  # No tool call, response was handled directly
-            # Handle string response by parsing JSON
+            # if response is a string, try to parse it as JSON
             if isinstance(response, str):
                 try:
                     response = json.loads(response)
                 except json.JSONDecodeError:
                     print("Failed to parse response as JSON")
                     return None
-                    # If response is a list/array, look for tool_use block
+
+            # if response is a list/array, look for tool_use block
             if isinstance(response, list):
                 for block in response:
-                    # Check if block is a dictionary with a 'type' key
-                    if isinstance(block, dict) and block.get('type') == 'tool_use':
-                        return block
-                    # Handle custom objects that might have a type attribute/property
-                    elif hasattr(block, 'type') and block.type == 'tool_use':
+                    # Handle custom objects and check for a tool use attribute/property
+                    if hasattr(block, 'type') and block.type == 'tool_use':
                         return block.__dict__ if hasattr(block, '__dict__') else block
             
+            # Check if block is a dictionary with a 'type' key that matches tool_use
             elif isinstance(response, dict) and response.get("type") == "tool_use":
                 return response
         
-            print("check tool call: ")
-            print(response)
-            # Check for tool use stop reason
-            if response[0]["type"]!= "tool_use":
-                return None
-                
-            # Check for tool calls array
-            return response[0]
+            # return false if no tool call is found
+            return False
             
         except Exception as e:
             print(f"Error checking tool call: {e}")
             return None
 
-=======
->>>>>>> cbdab44 (commitTest)
     def get_user_input(self):
+        """parse multiline input"""
+        # TODO: finish this function
         lines = []
         print("User: ")
 
@@ -313,8 +347,11 @@ class MCPClient:
     
     def chat_loop(self):
         messages = []
+        user_message = input("User: ")
+        # have hardcoded news story for now
+        document_content = input("Document (currently have hardcoded news story, just press enter): ") # TODO make doc uploader + extractor
+
         while True:
-<<<<<<< HEAD
             user_message = input("User: ").strip()
 
             if user_message.lower() in ["switch to 12-hour", "switch to 24-hour", "switch time format",
@@ -338,12 +375,15 @@ class MCPClient:
             #  Send the message to the model
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
             print(response)
-
-            # Check if a tool was called
+            # check if the response contains a tool call
             tool_call = self.check_tool_call(response)
             if tool_call:
+                # hardcoded specific tool call for now, TODO: parse tool call, match tool call to tool name
                 tool_response = await self.call_summarize_document_tool(tool_call)
                 print(tool_response)
+
+                # summary is a string right now that represents a TextBlock(text="[llm summary]", type="text")
+                # TODO: parse summary better and add to message history
                 summary = tool_response.content[0].text
                 print(summary)   
 =======
@@ -354,28 +394,52 @@ class MCPClient:
             if tool_call:
                 tool_response = self.tool_call(tool_call)
                 print(tool_response)
-
-            
             user_message = input("User: ")
->>>>>>> cbdab44 (commitTest)
-    
+
     async def cleanup(self):
         await self.exit_stack.aclose()
 
-def reformat_tools_description(tools: list[types.Tool]):
-    # MCP library changes the tool name to camelCase, so we need to reformat it
+def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
+    """
+    Reformat the tools description for anthropic
+    Args:
+        tools: The list of tools to be reformatted
+
+    Returns:
+        reformatted_tools: The list of reformatted tools with snake_case input_schema
+    """
+    # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
     reformatted_tools = []
     for tool in tools:
         current_tool = {
             "name": tool.name,
             "description": tool.description,
-            "input_schema": tool.inputSchema,
+            "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic can use it
         }
         reformatted_tools.append(current_tool)
 
     return reformatted_tools
 
-def to_kebab_case(camel_str: str) -> str:
+
+fake_news_story = """
+Gas Flare Bitcoin Miners Cut Methane Emissions in Permian Basin
+MIDLAND, TX - A consortium of Bitcoin mining operations in West Texas reported today that their gas reclamation efforts have prevented over 180,000 metric tons of methane from entering the atmosphere in the past year. By capturing and utilizing natural gas that would otherwise be flared at oil well sites, these mining operations are turning what was once waste into both cryptocurrency and environmental benefits.
+"We're essentially monetizing waste gas while reducing greenhouse gas emissions," explained Sarah Chen, CEO of GreenHash Solutions, one of the leading companies in the initiative. "The same energy that would have been burned off into the atmosphere is now powering our mining rigs, and we're seeing real environmental impact."
+Independent environmental assessments confirm that these operations have reduced methane emissions equivalent to removing 40,000 cars from the road. The success has drawn attention from other oil-producing regions looking to replicate the model.
+Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
+"""
+
+def to_camel_case(camel_str: str) -> str:
+    """
+    Convert a string from camelCase to kebab-case
+
+    Args:
+        camel_str: The string to be converted
+
+    Returns:
+        snake_str: The converted string
+    """
+    # anthropic uses snake case, MCP layer needs camelCase names
     return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()
 
 async def main():
