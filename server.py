@@ -46,10 +46,10 @@ async def summarize_document(document_content: str) -> str:
 async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
-            name="summarize_text",
+            name="summarize_document",
             description="Analyze text and provide a summary",
             inputSchema={
-                "name": "summarize_text",
+                "name": "summarize_document",
                 "required": ["document_content"],
                 "properties": {
                     "document_content": {
@@ -68,40 +68,6 @@ async def list_tools() -> list[types.Tool]:
             }
         )
     ]
-    """
-async def list_tools() -> list[types.Tool]:
-    return [
-        {
-            "name": "analyze_content",
-            "description": "Analyze text and optional PDF content",
-            "input_schema": {
-                "type": "object",
-                "required": ["document_content"],
-                "properties": {
-                    "document_content": {
-                        "type": "string",
-                        "description": "The content of the document to analyze"
-                    },
-                    "user_message": {
-                        "type": "string",
-                        "description": "The user's message"
-                    },
-                    "messages": {
-                        "type": "array",
-                        "description": "The messages to send to the model",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "role": {"type": "string"},
-                                "content": {"type": "string"}
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    ]
 
-""" 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
