@@ -42,7 +42,6 @@ class MCPClient:
             
         Returns:
             None: Updates instance attributes (stdio, write, session, tools) as side effects
-            
         """
         
         # validate the server script is a python script
@@ -74,13 +73,36 @@ class MCPClient:
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
     async def call_summarize_document_tool(self, LLM_tool_call):
+        """
+        This method handles the tool call from the LLM and passes it to the server
+        Args:
+            LLM_tool_call: The tool call from the LLM
+            
+        Returns:
+            tool_call: The tool call response from the MCP server
+        """
         print("LLM tool call: ")
         print(LLM_tool_call)
-        tool_name = to_kebab_case(LLM_tool_call["name"])
+        # MCP library changes the tool name to kebab case, so we need to reformat it so the server can use it
+        tool_name = to_camel_case(LLM_tool_call["name"])
+        
+        # call tool over the MCP connection established in connect_to_server, takes in tool name and args
         tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
         return tool_call
     
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+        """
+        This method sends a message to the LLM and returns the response
+
+        Args:
+            document_content: The content of the document to be summarized
+            (optional) user_message: The user's message to the LLM
+            (optional) messages: The list of messages of the chat history
+
+        Returns:
+            response: The response from the LLM
+        """
+        # if no messages, create a new list and inital chat message
         if not messages:
             messages = []
             chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
@@ -88,7 +110,9 @@ class MCPClient:
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
 
+        # TODO handle repeated chat messages
 
+        # send messages to the LLM
         response = self.chat.messages.create(
                     model=model_name,
             max_tokens=2048,
@@ -97,50 +121,45 @@ class MCPClient:
         )
         return response.content
     
-    def process_LLM_response(self, response):
-        pass
-
-
     def check_tool_call(self, response):
         """
         Check if the response contains a tool call and extract the relevant information.
+        Args:
+            response: The response from the LLM
+
+        Returns:
+            tool_call: The tool call response from the server
         """
         try:
-            # Handle string response by parsing JSON
+            # if response is a string, try to parse it as JSON
             if isinstance(response, str):
                 try:
                     response = json.loads(response)
                 except json.JSONDecodeError:
                     print("Failed to parse response as JSON")
                     return None
-                    # If response is a list/array, look for tool_use block
+
+            # if response is a list/array, look for tool_use block
             if isinstance(response, list):
                 for block in response:
-                    # Check if block is a dictionary with a 'type' key
-                    if isinstance(block, dict) and block.get('type') == 'tool_use':
-                        return block
-                    # Handle custom objects that might have a type attribute/property
-                    elif hasattr(block, 'type') and block.type == 'tool_use':
+                    # Handle custom objects and check for a tool use attribute/property
+                    if hasattr(block, 'type') and block.type == 'tool_use':
                         return block.__dict__ if hasattr(block, '__dict__') else block
             
+            # Check if block is a dictionary with a 'type' key that matches tool_use
             elif isinstance(response, dict) and response.get("type") == "tool_use":
                 return response
         
-            print("check tool call: ")
-            print(response)
-            # Check for tool use stop reason
-            if response[0]["type"]!= "tool_use":
-                return None
-                
-            # Check for tool calls array
-            return response[0]
+            # return false if no tool call is found
+            return False
             
         except Exception as e:
             print(f"Error checking tool call: {e}")
             return None
 
     def get_user_input(self):
-        """todo, parse multiline input"""
+        """parse multiline input"""
+        # TODO: finish this function
         lines = []
         print("User: ")
 
@@ -155,37 +174,48 @@ class MCPClient:
     async def chat_loop(self):
         messages = []
         user_message = input("User: ")
-        document_content = input("Document: ") # TODO make doc uploader + extractor
+        # have hardcoded news story for now
+        document_content = input("Document (currently have hardcoded news story, just press enter): ") # TODO make doc uploader + extractor
+
         while True:
             # LLM call
-            document_content = fake_news_story
+            document_content = fake_news_story #hardcoding a news story for now
+            # send inputs to the LLM and get response
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
             print(response)
+            # check if the response contains a tool call
             tool_call = self.check_tool_call(response)
             if tool_call:
-                # hardcoded tool call for now, TODO: parse tool call, match tool call to tool name
+                # hardcoded specific tool call for now, TODO: parse tool call, match tool call to tool name
                 tool_response = await self.call_summarize_document_tool(tool_call)
                 print(tool_response)
 
-                # summary is a string right now
+                # summary is a string right now that represents a TextBlock(text="[llm summary]", type="text")
+                # TODO: parse summary better and add to message history
                 summary = tool_response.content[0].text
                 print(summary)
 
-
-            
             user_message = input("User: ")
     
     async def cleanup(self):
         await self.exit_stack.aclose()
 
 def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
+    """
+    Reformat the tools description for anthropic
+    Args:
+        tools: The list of tools to be reformatted
+
+    Returns:
+        reformatted_tools: The list of reformatted tools with snake_case input_schema
+    """
     # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
     reformatted_tools = []
     for tool in tools:
         current_tool = {
             "name": tool.name,
             "description": tool.description,
-            "input_schema": tool.inputSchema,
+            "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic can use it
         }
         reformatted_tools.append(current_tool)
 
@@ -200,7 +230,17 @@ Independent environmental assessments confirm that these operations have reduced
 Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
 """
 
-def to_kebab_case(camel_str: str) -> str:
+def to_camel_case(camel_str: str) -> str:
+    """
+    Convert a string from camelCase to kebab-case
+
+    Args:
+        camel_str: The string to be converted
+
+    Returns:
+        snake_str: The converted string
+    """
+    # anthropic uses snake case, MCP layer needs camelCase names
     return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()
 
 async def main():
