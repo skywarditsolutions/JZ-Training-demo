@@ -24,22 +24,15 @@ mcp = FastMCP("Summarizer")
 
 
 @mcp.tool()
-async def summarize_document(document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None) -> str:
+async def summarize_document(document_content: str) -> str:
     """Analyze Text content"""
 
-    if not messages:
-        messages = []
-        # claude SDK doesn't let you do system prompt?
-        system_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
-        messages.append({"role": "user", "content": system_prompt}) # passing in as user message
-
-    content = ""
-    if user_message:
-        content = f"Document content: {document_content}\n\nUser message: {user_message}"
-    else: 
-        content = f"Document content: {document_content}"
+    messages = []
+    # claude SDK doesn't let you do system prompt?
+    user_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
+    user_prompt += f"\n\nDocument content: {document_content}"
+    messages.append({"role": "user", "content": user_prompt}) # passing in as user message
     
-    messages.append({"role": "user", "content": content})
 
     response = chat.messages.create(
                 model=model_name,
@@ -48,14 +41,15 @@ async def summarize_document(document_content: str, user_message: Optional[str] 
     )
     return response.content
 
+# modified from fastMCP example
 #  @mcp.list_tools() not necessary for fastMCP
 async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
-            name="analyze_content",
-            description="Analyze text and optional PDF content",
+            name="summarize_text",
+            description="Analyze text and provide a summary",
             inputSchema={
-                "name": "analyze_content",
+                "name": "summarize_text",
                 "required": ["document_content"],
                 "properties": {
                     "document_content": {
@@ -74,7 +68,40 @@ async def list_tools() -> list[types.Tool]:
             }
         )
     ]
+    """
+async def list_tools() -> list[types.Tool]:
+    return [
+        {
+            "name": "analyze_content",
+            "description": "Analyze text and optional PDF content",
+            "input_schema": {
+                "type": "object",
+                "required": ["document_content"],
+                "properties": {
+                    "document_content": {
+                        "type": "string",
+                        "description": "The content of the document to analyze"
+                    },
+                    "user_message": {
+                        "type": "string",
+                        "description": "The user's message"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "description": "The messages to send to the model",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "role": {"type": "string"},
+                                "content": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    ]
 
-
+""" 
 if __name__ == "__main__":
     mcp.run(transport="stdio")

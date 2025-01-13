@@ -11,6 +11,8 @@ from mcp.client.stdio import stdio_client
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
 
+import mcp.types as types
+
 #from haystack.components.builders.prompt_builder import PromptBuilder
 
 load_dotenv()
@@ -44,7 +46,9 @@ class MCPClient:
         await self.session.initialize()
 
         response = await self.session.list_tools()
-        self.tools = response.tools
+        formatted_tools = reformat_tools_description(response.tools)
+        self.tools = formatted_tools
+        #self.tools = test_dummy_tools()
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
     def tool_call(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None):
@@ -52,9 +56,10 @@ class MCPClient:
         return tool_call
     
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+        print(self.tools)
         if not messages:
             messages = []
-            system_prompt = "WE are testing a tool calling model, reply with a choice of available tools."
+            system_prompt = "We are testing a tool calling model, reply with a choice of available tools."
             messages.append({"role": "user", "content": system_prompt}) # passing in as user message
 
         content = ""
@@ -106,6 +111,22 @@ class MCPClient:
     
     async def cleanup(self):
         await self.exit_stack.aclose()
+
+def reformat_tools_description(tools: list[types.Tool]):
+    # MCP library changes the tool name to camelCase, so we need to reformat it
+    reformatted_tools = []
+    for tool in tools:
+        current_tool = {
+            "name": tool.name,
+            "description": tool.description,
+            "input_schema": tool.inputSchema,
+        }
+        reformatted_tools.append(current_tool)
+
+    return reformatted_tools
+
+def to_kebab_case(camel_str: str) -> str:
+    return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()
 
 async def main():
     if len(sys.argv) < 2:
