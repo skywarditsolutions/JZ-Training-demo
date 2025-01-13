@@ -25,7 +25,7 @@ mcp = FastMCP("Summarizer")
 
 @mcp.tool()
 async def summarize_document(document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None) -> str:
-    """Analyze PDF content, should this have message history?"""
+    """Analyze Text content"""
 
     if not messages:
         messages = []

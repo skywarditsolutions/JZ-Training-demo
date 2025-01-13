@@ -11,7 +11,7 @@ from mcp.client.stdio import stdio_client
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
 
-from haystack.components.builders.prompt_builder import PromptBuilder
+#from haystack.components.builders.prompt_builder import PromptBuilder
 
 load_dotenv()
 
@@ -46,7 +46,7 @@ class MCPClient:
         response = await self.session.list_tools()
         self.tools = response.tools
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
-    
+
     def tool_call(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None):
         tool_call = self.session.tool_call(document_content, user_message, messages)
         return tool_call
@@ -54,9 +54,7 @@ class MCPClient:
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         if not messages:
             messages = []
-            # claude SDK doesn't let you do system prompt?
-            print(self.tools)
-            system_prompt = "You are a helpful assistant, you have the following tools available: " + ", ".join([tool.name for tool in self.tools])
+            system_prompt = "WE are testing a tool calling model, reply with a choice of available tools."
             messages.append({"role": "user", "content": system_prompt}) # passing in as user message
 
         content = ""
@@ -70,12 +68,25 @@ class MCPClient:
         response = self.chat.messages.create(
                     model=model_name,
             max_tokens=2048,
-            messages=messages
+            messages=messages,
+            tools=self.tools
         )
         return response.content
 
     def parse_tool_call(self, response):
         print(response)
+    
+    def get_user_input(self):
+        lines = []
+        print("User: ")
+
+        while True:
+            try: 
+                line = input()
+                lines.append(line)
+            except EOFError:
+                break
+        return lines
     
     def chat_loop(self):
         messages = []
