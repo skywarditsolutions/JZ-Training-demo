@@ -66,6 +66,7 @@ class MCPClient:
         await self.session.initialize()
 
         # Retrieve available tools from server and reformat for Anthropic compatibility
+        # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
         response = await self.session.list_tools()
         formatted_tools = reformat_tools_description_for_anthropic(response.tools)
         self.tools = formatted_tools
@@ -81,11 +82,8 @@ class MCPClient:
         Returns:
             tool_call: The tool call response from the MCP server
         """
-        # MCP library changes the tool name to kebab case, so we need to reformat it so the server can use it
-        tool_name = to_camel_case(tool_call.name)
-        
         # call tool over the MCP connection established in connect_to_server, takes in tool name and args
-        tool_result = await self.session.call_tool(tool_name, tool_call.input)
+        tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
         return tool_result
     
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
@@ -110,8 +108,6 @@ class MCPClient:
         else:
             messages.append({"role": "user", "content": user_message})
 
-        # TODO handle repeated chat messages
-
         # send messages to the LLM
         response = self.chat.messages.create(
                     model=model_name,
@@ -133,7 +129,7 @@ class MCPClient:
         try:
             if response.stop_reason == "tool_use":
                 print("type is tool_use")
-                return response.content[1]
+                return response.content[1] # response format is [chat_message, tool_call]
         
             # return false if no tool call is found
             return False
@@ -176,7 +172,7 @@ class MCPClient:
                 tool_response = await self.call_summarize_document_tool(tool_call)
                 summary = tool_response.content[0].text
                 print("summary: ", summary)
-                messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})
+                messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})# final assistant content cannot end with trailing whitespace
             else:
                 messages.append({"role": "assistant", "content": llm_text_response})
             user_message = input("User: ")
@@ -214,18 +210,6 @@ Independent environmental assessments confirm that these operations have reduced
 Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
 """
 
-def to_camel_case(camel_str: str) -> str:
-    """
-    Convert a string from camelCase to kebab-case
-
-    Args:
-        camel_str: The string to be converted
-
-    Returns:
-        snake_str: The converted string
-    """
-    # anthropic uses snake case, MCP layer needs camelCase names
-    return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()
 
 async def main():
     if len(sys.argv) < 2:
