@@ -53,7 +53,7 @@ async def summarize_document(document_content: str) -> str:
     # TODO error handling
     return summary
 
-@mcp.tool
+@mcp.tool()
 async def populate_database(data_input: int) -> str:
     """Populates a database with selected data from user
     
@@ -62,7 +62,7 @@ async def populate_database(data_input: int) -> str:
 
     Returns: 
         a database consisting of the selected data from user
-    """"
+    """
     
     return f"Hello I am a tool that populates a database! This is the integer you gave me: {data_input}."
 
@@ -94,7 +94,9 @@ async def list_tools() -> list[types.Tool]:
                     }
                 }
             }
+        ),
 
+        types.Tool(
             name="populate_database",
             descripton="Populates a database with selected data from user",
             inputSchema={
