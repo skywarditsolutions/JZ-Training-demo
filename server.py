@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# hello! nathan is very good at eating food :) he is the best
+
 # Only (?) supported model
 model_name="anthropic.claude-3-5-sonnet-20240620-v1:0"
 
