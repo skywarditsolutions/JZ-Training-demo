@@ -9,13 +9,16 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from anthropic import AnthropicBedrock
 
 import mcp.types as types
 
 #from haystack.components.builders.prompt_builder import PromptBuilder
 
-load_dotenv()
+
 
 # Only (?) supported model
 model_name="anthropic.claude-3-5-sonnet-20240620-v1:0"
@@ -28,119 +31,62 @@ class MCPClient:
     
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
-            This method sets up a connection to a Python-based MCP server by:
-        1. Validating the server script file extension
-        2. Creating a stdio transport connection
-        3. Initializing a client session
-        4. Retrieving and reformatting available tools
-
-        Args:
-            server_script_path: Path to the Python server script file (.py extension)
-
-        Raises:
-            ValueError: If the provided script path doesn't end with .py extension
-            
-        Returns:
-            None: Updates instance attributes (stdio, write, session, tools) as side effects
-            
-        """
         
-        # validate the server script is a python script
+        Args: server_script_path (str): The path to the python server script (.py)"""
         is_python = server_script_path.endswith(".py")
         if not is_python:
             raise ValueError("Server script must be a Python script (.py)")
         
         # only python for now
-        # Configure and establish stdio transport connection
-        # StdioServerParameters specifies how to spawn and communicate with the server process
         server_params = StdioServerParameters(
             command="python", args=[server_script_path], env=None
         )
-
-        # Create transport layer using context manager to ensure proper cleanup
         stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
 
-        # Unpack transport handles for reading and writing
         self.stdio, self.write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
 
         await self.session.initialize()
 
-        # Retrieve available tools from server and reformat for Anthropic compatibility
         response = await self.session.list_tools()
-        formatted_tools = reformat_tools_description_for_anthropic(response.tools)
+        formatted_tools = reformat_tools_description(response.tools)
         self.tools = formatted_tools
-
+        #self.tools = test_dummy_tools()
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, LLM_tool_call):
-        print("LLM tool call: ")
-        print(LLM_tool_call)
-        tool_name = to_kebab_case(LLM_tool_call["name"])
-        tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
+    def tool_call(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None):
+        tool_call = self.session.tool_call(document_content, user_message, messages)
         return tool_call
     
+    
+    
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+        print(self.tools)
         if not messages:
             messages = []
-            chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
-            chat_prompt += "User request: " + user_message + "\n\n"
-            chat_prompt += "Document content: " + document_content + "\n\n"
-            messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
+            system_prompt = "We are testing a tool calling model, reply with a choice of available tools."
+            messages.append({"role": "user", "content": system_prompt}) # passing in as user message
 
+        content = ""
+        if user_message:
+            content = f"Document content: {document_content}\n\nUser message: {user_message}"
+        else: 
+            content = f"Document content: {document_content}"
+        
+        messages.append({"role": "user", "content": content})
 
         response = self.chat.messages.create(
-                    model=model_name,
+            model=model_name,
             max_tokens=2048,
             messages=messages,
             tools=self.tools
         )
         return response.content
+
+    def parse_tool_call(self, response):
+        print(response)
     
-    def process_LLM_response(self, response):
-        pass
-
-
-    def check_tool_call(self, response):
-        """
-        Check if the response contains a tool call and extract the relevant information.
-        """
-        try:
-            # Handle string response by parsing JSON
-            if isinstance(response, str):
-                try:
-                    response = json.loads(response)
-                except json.JSONDecodeError:
-                    print("Failed to parse response as JSON")
-                    return None
-                    # If response is a list/array, look for tool_use block
-            if isinstance(response, list):
-                for block in response:
-                    # Check if block is a dictionary with a 'type' key
-                    if isinstance(block, dict) and block.get('type') == 'tool_use':
-                        return block
-                    # Handle custom objects that might have a type attribute/property
-                    elif hasattr(block, 'type') and block.type == 'tool_use':
-                        return block.__dict__ if hasattr(block, '__dict__') else block
-            
-            elif isinstance(response, dict) and response.get("type") == "tool_use":
-                return response
-        
-            print("check tool call: ")
-            print(response)
-            # Check for tool use stop reason
-            if response[0]["type"]!= "tool_use":
-                return None
-                
-            # Check for tool calls array
-            return response[0]
-            
-        except Exception as e:
-            print(f"Error checking tool call: {e}")
-            return None
-
     def get_user_input(self):
-        """todo, parse multiline input"""
         lines = []
         print("User: ")
 
@@ -152,25 +98,18 @@ class MCPClient:
                 break
         return lines
     
-    async def chat_loop(self):
+    def chat_loop(self):
         messages = []
         user_message = input("User: ")
         document_content = input("Document: ") # TODO make doc uploader + extractor
         while True:
-            # LLM call
-            document_content = fake_news_story
-            response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
+            # initial LLM call
+            response = self.send_message(user_message, document_content, messages)
             print(response)
-            tool_call = self.check_tool_call(response)
+            tool_call = self.parse_tool_call(response)
             if tool_call:
-                # hardcoded tool call for now, TODO: parse tool call, match tool call to tool name
-                tool_response = await self.call_summarize_document_tool(tool_call)
+                tool_response = self.tool_call(tool_call)
                 print(tool_response)
-
-                # summary is a string right now
-                summary = tool_response.content[0].text
-                print(summary)
-
 
             
             user_message = input("User: ")
@@ -178,8 +117,8 @@ class MCPClient:
     async def cleanup(self):
         await self.exit_stack.aclose()
 
-def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
-    # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
+def reformat_tools_description(tools: list[types.Tool]):
+    # MCP library changes the tool name to camelCase, so we need to reformat it
     reformatted_tools = []
     for tool in tools:
         current_tool = {
@@ -190,15 +129,6 @@ def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
         reformatted_tools.append(current_tool)
 
     return reformatted_tools
-
-
-fake_news_story = """
-Gas Flare Bitcoin Miners Cut Methane Emissions in Permian Basin
-MIDLAND, TX - A consortium of Bitcoin mining operations in West Texas reported today that their gas reclamation efforts have prevented over 180,000 metric tons of methane from entering the atmosphere in the past year. By capturing and utilizing natural gas that would otherwise be flared at oil well sites, these mining operations are turning what was once waste into both cryptocurrency and environmental benefits.
-"We're essentially monetizing waste gas while reducing greenhouse gas emissions," explained Sarah Chen, CEO of GreenHash Solutions, one of the leading companies in the initiative. "The same energy that would have been burned off into the atmosphere is now powering our mining rigs, and we're seeing real environmental impact."
-Independent environmental assessments confirm that these operations have reduced methane emissions equivalent to removing 40,000 cars from the road. The success has drawn attention from other oil-producing regions looking to replicate the model.
-Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
-"""
 
 def to_kebab_case(camel_str: str) -> str:
     return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()
