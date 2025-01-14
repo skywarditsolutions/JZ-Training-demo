@@ -83,7 +83,7 @@ class MCPClient:
         response = await self.session.list_tools()
         formatted_tools = reformat_tools_description(response.tools)
         self.tools = formatted_tools
-        #self.tools = test_dummy_tools()
+
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
     async def call_summarize_document_tool(self, LLM_tool_call):
