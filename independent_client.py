@@ -126,11 +126,14 @@ class MCPClient:
         messages = []
         user_message = input("User: ")
         # have hardcoded news story for now
-        document_content = input("Document (currently have hardcoded news story, just press enter): ") # TODO make doc uploader + extractor
+        document_content = input("Document to summarize (leave blank for hardcoded news story): ")
 
         while True:
             # LLM call
-            document_content = fake_news_story # hardcoding a news story for now
+            if document_content == "":
+                document_content = fake_news_story # have a hardcoded news story for testing
+            if user_message == "": # if user presses enter without typing anything, continue
+                continue
             # send inputs to the LLM and get response
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
             llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
