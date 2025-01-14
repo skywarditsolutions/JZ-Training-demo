@@ -381,12 +381,7 @@ class MCPClient:
             # check if the response contains a tool call
             tool_call = self.check_tool_call(response)
             if tool_call:
-                # hardcoded specific tool call for now, TODO: parse tool call, match tool call to tool name
                 tool_response = await self.call_summarize_document_tool(tool_call)
-                print(tool_response)
-
-                # summary is a string right now that represents a TextBlock(text="[llm summary]", type="text")
-                # TODO: parse summary better and add to message history
                 summary = tool_response.content[0].text
                 print("summary: ", summary)   
                 messages.append({"role": "assistant", "content": summary.strip()})
