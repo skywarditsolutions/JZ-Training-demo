@@ -98,7 +98,7 @@ async def list_tools() -> list[types.Tool]:
 
         types.Tool(
             name="populate_database",
-            descripton="Populates a database with selected data from user",
+            description="Populates a database with selected data from user",
             inputSchema={
                 "name": "populate_database",
                 "required": ["data_input"],
