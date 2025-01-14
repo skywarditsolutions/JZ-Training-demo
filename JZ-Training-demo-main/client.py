@@ -116,7 +116,7 @@ class MCPClient:
             chat_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             
-            #need to insert an if statement for when a user might want to populate a database/ do more than just summarize document 
+            #need to insert statement for when a users want to populate a database/ do more than just summarize document 
             #can include Nathan's database importer
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
