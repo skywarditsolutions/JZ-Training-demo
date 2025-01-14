@@ -95,6 +95,7 @@ async def list_tools() -> list[types.Tool]:
                 }
             }
         ),
+    
 
         types.Tool(
             name="populate_database",

@@ -125,7 +125,7 @@ class MCPClient:
 
         # send messages to the LLM
         response = self.chat.messages.create(
-                    model=model_name,
+            model=model_name,
             max_tokens=2048,
             messages=messages,
             tools=self.tools
