@@ -11,7 +11,7 @@ from mcp.client.stdio import stdio_client
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
 from datetime import datetime
-
+import pytz
 
 import mcp.types as types
 
@@ -86,9 +86,6 @@ class MCPClient:
         """Get current date and time (system time or server time)."""
         
         local_time = datetime.now()
-
-
-
         utc_time = datetime.now(pytz.utc)
 
         return f"Local Time: {local_time.strftime('%Y-%m-%d %H:%M:%S')}, UTC Time: {utc_time.strftime('%Y-%m-%d %H:%M:%S')}"
@@ -98,18 +95,18 @@ class MCPClient:
             messages = []
 
 
-        if "current date and time" in user_message.lower():
-        # Respond with current date and time
+        if any(phrase in user_message.lower() for phrase in ["give me the time", "current time", "what time is it", "tell me the time"]):
             datetime_response = self.get_current_datetime()
             chat_prompt = f"User asked for the current date and time.\n\nResponse: {datetime_response}\n\n"
             messages.append({"role": "user", "content": chat_prompt})
+            return datetime_response
         else:
             chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
-            messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
+            messages.append({"role": "user", "content": chat_prompt})
 
-
+            
         response = self.chat.messages.create(
                     model=model_name,
             max_tokens=2048,
