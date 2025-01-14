@@ -86,7 +86,7 @@ class MCPClient:
 
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, LLM_tool_call):
+    async def call_summarize_document_tool(self, tool_call):
         """
         This method handles the tool call from the LLM and passes it to the server
         Args:
@@ -95,10 +95,8 @@ class MCPClient:
         Returns:
             tool_call: The tool call response from the MCP server
         """
-        print("LLM tool call: ")
-        print(LLM_tool_call)
         # MCP library changes the tool name to kebab case, so we need to reformat it so the server can use it
-        tool_name = to_camel_case(LLM_tool_call["name"])
+        tool_name = to_camel_case(tool_call.name)
         
         # call tool over the MCP connection established in connect_to_server, takes in tool name and args
         tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
