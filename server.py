@@ -1,15 +1,16 @@
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
-import PyPDF2
+#import PyPDF2
 import io
 from typing import Any
-import asyncio
-import httpx
+#import asyncio
+#import httpx
 from mcp.server.models import InitializationOptions
 import mcp.types as types
 from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 from anthropic import AnthropicBedrock
+from datetime import datetime #This is a test
 
 from dotenv import load_dotenv
 
@@ -24,33 +25,47 @@ mcp = FastMCP("Summarizer")
 
 
 @mcp.tool()
-async def analyze_content(document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None) -> str:
-    """Analyze text and optional PDF content"""
-    if not messages:
-        messages = []
-        system_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
-        messages.append({"role": "system", "content": system_prompt})
-        user_prompt = f"Document content: {document_content}\n\nUser message: {user_message}"
-        messages.append({"role": "user", "content": user_prompt})
-    else:
-        messages.append({"role": "user", "content": user_message})
+async def summarize_document(document_content: str) -> str:
+    """Analyze Text content
+    Args:
+        document_content: The content of the document to analyze
 
+    Returns:
+        LLM response obj with summary of the document
+    """
+
+    messages = []
+    # claude SDK doesn't let you do system prompt?
+    user_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
+    user_prompt += f"\n\nDocument content: {document_content}"
+    messages.append({"role": "user", "content": user_prompt}) # passing in as user message
+    
+    # send messages to the LLM
     response = chat.messages.create(
                 model=model_name,
         max_tokens=2048,
         messages=messages
     )
+    # originally wanted to use re.search(?<=<summary>)(.*?)(?=</summary>)
+    # regex would cause the process to hang on the LLM call (too computationally expensive?), splitting the string is a quick fix
+    # LLM returns a string with <summary> and </summary> tags, so we split the string twice to isolate the summary
+    beginning_summary = response.content[0].text.split("<summary>")[1]
+    summary = beginning_summary.split("</summary>")[0] # isolate the summary
+    # TODO error handling
+    return summary
 
-    return response.content
-
-#  @mcp.list_tools()
+# modified from fastMCP example
+#  @mcp.list_tools() not necessary for fastMCP
 async def list_tools() -> list[types.Tool]:
+    """
+    List the tools available to the LLM
+    """
     return [
         types.Tool(
-            name="analyze_content",
-            description="Analyze text and optional PDF content",
+            name="summarize_document",
+            description="Analyze text and provide a summary",
             inputSchema={
-                "name": "analyze_content",
+                "name": "summarize_document",
                 "required": ["document_content"],
                 "properties": {
                     "document_content": {
@@ -69,7 +84,6 @@ async def list_tools() -> list[types.Tool]:
             }
         )
     ]
-
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
