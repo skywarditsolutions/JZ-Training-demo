@@ -219,7 +219,7 @@ class MCPClient:
         messages = []
         user_message = input("User: ")
         # have hardcoded news story for now
-        document_content = input("Document (currently have hardcoded news story, just press enter): ") # TODO make doc uploader + extractor
+        document_content = input("Document to summarize (leave blank for hardcoded news story): ")
 
         while True:
             user_message = input("User: ").strip()
