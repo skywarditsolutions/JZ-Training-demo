@@ -10,6 +10,8 @@ from mcp.client.stdio import stdio_client
 
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
+from datetime import datetime
+
 
 import mcp.types as types
 
@@ -80,9 +82,28 @@ class MCPClient:
         tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
         return tool_call
     
+    def get_current_datetime(self):
+        """Get current date and time (system time or server time)."""
+        
+        local_time = datetime.now()
+
+
+
+        utc_time = datetime.now(pytz.utc)
+
+        return f"Local Time: {local_time.strftime('%Y-%m-%d %H:%M:%S')}, UTC Time: {utc_time.strftime('%Y-%m-%d %H:%M:%S')}"
+    
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         if not messages:
             messages = []
+
+
+        if "current date and time" in user_message.lower():
+        # Respond with current date and time
+            datetime_response = self.get_current_datetime()
+            chat_prompt = f"User asked for the current date and time.\n\nResponse: {datetime_response}\n\n"
+            messages.append({"role": "user", "content": chat_prompt})
+        else:
             chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
@@ -158,9 +179,15 @@ class MCPClient:
         document_content = input("Document: ") # TODO make doc uploader + extractor
         while True:
             # LLM call
-            document_content = fake_news_story
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
             print(response)
+
+            # Check if the user has asked for time info
+
+            if "current date and time" in user_message.lower():
+                print(f"LLM Response: {response}")
+
+
             tool_call = self.check_tool_call(response)
             if tool_call:
                 # hardcoded tool call for now, TODO: parse tool call, match tool call to tool name
@@ -172,7 +199,7 @@ class MCPClient:
                 print(summary)
 
 
-            
+
             user_message = input("User: ")
     
     async def cleanup(self):
