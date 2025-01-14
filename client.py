@@ -72,7 +72,7 @@ class MCPClient:
 
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, LLM_tool_call):
+    async def call_summarize_document_tool(self, tool_call):
         """
         This method handles the tool call from the LLM and passes it to the server
         Args:
@@ -81,14 +81,12 @@ class MCPClient:
         Returns:
             tool_call: The tool call response from the MCP server
         """
-        print("LLM tool call: ")
-        print(LLM_tool_call)
         # MCP library changes the tool name to kebab case, so we need to reformat it so the server can use it
-        tool_name = to_camel_case(LLM_tool_call["name"])
+        tool_name = to_camel_case(tool_call.name)
         
         # call tool over the MCP connection established in connect_to_server, takes in tool name and args
-        tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
-        return tool_call
+        tool_result = await self.session.call_tool(tool_name, tool_call.input)
+        return tool_result
     
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
@@ -105,7 +103,7 @@ class MCPClient:
         # if no messages, create a new list and inital chat message
         if not messages:
             messages = []
-            chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
+            chat_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
@@ -133,25 +131,9 @@ class MCPClient:
             tool_call: The tool call response from the server
         """
         try:
-            content = response.content
-            # if response is a string, try to parse it as JSON
-            if isinstance(content, str):
-                try:
-                    response = json.loads(content)
-                except json.JSONDecodeError:
-                    print("Failed to parse response as JSON")
-                    return None
-
-            # if response is a list/array, look for tool_use block
-            if isinstance(content, list):
-                for block in content:
-                    # Handle custom objects and check for a tool use attribute/property
-                    if hasattr(block, 'type') and block.type == 'tool_use':
-                        return block.__dict__ if hasattr(block, '__dict__') else block
-            
-            # Check if block is a dictionary with a 'type' key that matches tool_use
-            elif isinstance(content, dict) and content.get("type") == "tool_use":
-                return content
+            if response.stop_reason == "tool_use":
+                print("type is tool_use")
+                return response.content[1]
         
             # return false if no tool call is found
             return False
@@ -194,7 +176,7 @@ class MCPClient:
                 tool_response = await self.call_summarize_document_tool(tool_call)
                 summary = tool_response.content[0].text
                 print("summary: ", summary)
-                messages.append({"role": "assistant", "content": summary.strip()})
+                messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})
             else:
                 messages.append({"role": "assistant", "content": llm_text_response})
             user_message = input("User: ")
