@@ -88,7 +88,8 @@ class MCPClient:
 
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, tool_call):
+    async def call_summarize_document_tool(self, LLM_tool_call):
+    async def call_summarize_document_tool(self, LLM_tool_call):
         """
         This method handles the tool call from the LLM and passes it to the server
         Args:
@@ -117,6 +118,7 @@ class MCPClient:
             response: The response from the LLM
         """
         # if no messages, create a new list and inital chat message
+        print(self.tools)
         if not messages:
             messages = []
 
@@ -155,7 +157,7 @@ class MCPClient:
             messages=messages,
             tools=self.tools
         )
-        return response
+        return response.content
 
     def parse_tool_call(self, response):
         print(response)
@@ -168,7 +170,7 @@ class MCPClient:
         """
         Check if the response contains a tool call and extract the relevant information.
         Args:
-            response: The full object response from the LLM
+            response: The response from the LLM
 
         Returns:
             tool_call: The tool call response from the server
@@ -247,13 +249,16 @@ class MCPClient:
 
             #  Send the message to the model
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
-            llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
-            print("LLM: ", llm_text_response)
-            messages.append({"role": "assistant", "content": llm_text_response}) 
+            print(response)
             # check if the response contains a tool call
             tool_call = self.check_tool_call(response)
             if tool_call:
+                # hardcoded specific tool call for now, TODO: parse tool call, match tool call to tool name
                 tool_response = await self.call_summarize_document_tool(tool_call)
+                print(tool_response)
+
+                # summary is a string right now that represents a TextBlock(text="[llm summary]", type="text")
+                # TODO: parse summary better and add to message history
                 summary = tool_response.content[0].text
                 print("summary: ", summary)
                 messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})# final assistant content cannot end with trailing whitespace
