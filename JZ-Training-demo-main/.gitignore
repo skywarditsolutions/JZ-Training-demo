@@ -1,0 +1,22 @@
+# Input files
+*.pdf
+*.json
+*.csv
+*.xlsx
+*.xls
+*.docx
+*.pptx
+*.pdf
+
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+venv
+.env
+uv.lock
