@@ -12,6 +12,8 @@ from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 from anthropic import AnthropicBedrock
 
+import requests
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,6 +25,31 @@ chat = AnthropicBedrock()
 # Create an MCP server
 mcp = FastMCP("Summarizer")
 
+@mcp.tool()
+async def fetch_bitcoin_price()->str:
+    """Fetches the current Bitcoin price from Coingecko"""
+    try:
+        # CoinGecko API endpoint for Bitcoin price in USD
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        
+        # Send GET request to the API
+        response = requests.get(url)
+        
+        # Check if the request was successful
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Extract the Bitcoin price in USD
+            bitcoin_price = data['bitcoin']['usd']
+            
+            return bitcoin_price
+        else:
+            print(f"Error: Unable to fetch data. Status code: {response.status_code}")
+            return None
+    
+    except requests.RequestException as e:
+        print(f"Error: {e}")
+        return None
 
 @mcp.tool()
 async def summarize_document(document_content: str) -> str:
@@ -61,6 +88,13 @@ async def list_tools() -> list[types.Tool]:
     List the tools available to the LLM
     """
     return [
+        types.Tool(
+            name="fetch_bitcoin_price",
+            description="Fetches the current Bitcoin price from Coingecko",
+            inputSchema={
+                "name": "fetch_bitcoin_price",
+            }
+        ),
         types.Tool(
             name="summarize_document",
             description="Analyze text and provide a summary",

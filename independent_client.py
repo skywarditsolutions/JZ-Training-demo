@@ -143,9 +143,9 @@ class MCPClient:
             tool_call = self.check_tool_call(response)
             if tool_call:
                 tool_response = await self.call_summarize_document_tool(tool_call)
-                summary = tool_response.content[0].text
-                print("summary: ", summary)
-                messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})# final assistant content cannot end with trailing whitespace
+                tool_result_text = tool_response.content[0].text
+                print("tool response: ", tool_result_text)
+                messages.append({"role": "assistant", "content": f"Tool summary: {tool_result_text.strip()}"})# final assistant content cannot end with trailing whitespace
             else:
                 messages.append({"role": "assistant", "content": llm_text_response})
             user_message = input("User: ")
