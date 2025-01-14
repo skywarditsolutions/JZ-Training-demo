@@ -44,6 +44,15 @@ async def summarize_document(document_content: str) -> str:
     )
     return response.content
 
+
+# 🕒 New Tool: Get Current Date and Time
+@mcp.tool()
+async def get_current_datetime() -> str:
+    """Returns the current date and time in 'YYYY-MM-DD HH:MM:SS' format."""
+    now = datetime.now()
+    return now.strftime("%Y-%m-%d %H:%M:%S")
+
+
 # modified from fastMCP example
 #  @mcp.list_tools() not necessary for fastMCP
 async def list_tools() -> list[types.Tool]:
@@ -69,6 +78,12 @@ async def list_tools() -> list[types.Tool]:
                     }
                 }
             }
+        ),
+
+        types.Tool(
+            name="get_current_datetime",
+            description="Returns the current date and time.",
+            inputSchema={}
         )
     ]
 
