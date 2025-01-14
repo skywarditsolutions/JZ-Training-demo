@@ -109,6 +109,8 @@ class MCPClient:
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
+        else:
+            messages.append({"role": "user", "content": user_message})
 
         # TODO handle repeated chat messages
 
@@ -119,36 +121,37 @@ class MCPClient:
             messages=messages,
             tools=self.tools
         )
-        return response.content
+        return response
     
     def check_tool_call(self, response):
         """
         Check if the response contains a tool call and extract the relevant information.
         Args:
-            response: The response from the LLM
+            response: The full object response from the LLM
 
         Returns:
             tool_call: The tool call response from the server
         """
         try:
+            content = response.content
             # if response is a string, try to parse it as JSON
-            if isinstance(response, str):
+            if isinstance(content, str):
                 try:
-                    response = json.loads(response)
+                    response = json.loads(content)
                 except json.JSONDecodeError:
                     print("Failed to parse response as JSON")
                     return None
 
             # if response is a list/array, look for tool_use block
-            if isinstance(response, list):
-                for block in response:
+            if isinstance(content, list):
+                for block in content:
                     # Handle custom objects and check for a tool use attribute/property
                     if hasattr(block, 'type') and block.type == 'tool_use':
                         return block.__dict__ if hasattr(block, '__dict__') else block
             
             # Check if block is a dictionary with a 'type' key that matches tool_use
-            elif isinstance(response, dict) and response.get("type") == "tool_use":
-                return response
+            elif isinstance(content, dict) and content.get("type") == "tool_use":
+                return content
         
             # return false if no tool call is found
             return False
@@ -179,22 +182,21 @@ class MCPClient:
 
         while True:
             # LLM call
-            document_content = fake_news_story #hardcoding a news story for now
+            document_content = fake_news_story # hardcoding a news story for now
             # send inputs to the LLM and get response
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
-            print(response)
+            llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
+            print("LLM: ", llm_text_response)
+            messages.append({"role": "assistant", "content": llm_text_response}) 
             # check if the response contains a tool call
             tool_call = self.check_tool_call(response)
             if tool_call:
-                # hardcoded specific tool call for now, TODO: parse tool call, match tool call to tool name
                 tool_response = await self.call_summarize_document_tool(tool_call)
-                print(tool_response)
-
-                # summary is a string right now that represents a TextBlock(text="[llm summary]", type="text")
-                # TODO: parse summary better and add to message history
                 summary = tool_response.content[0].text
-                print(summary)
-
+                print("summary: ", summary)
+                messages.append({"role": "assistant", "content": summary.strip()})
+            else:
+                messages.append({"role": "assistant", "content": llm_text_response})
             user_message = input("User: ")
     
     async def cleanup(self):
