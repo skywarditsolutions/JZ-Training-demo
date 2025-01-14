@@ -50,7 +50,7 @@ async def summarize_document(document_content: str) -> str:
     )
     # originally wanted to use re.search(?<=<summary>)(.*?)(?=</summary>)
     # regex would cause the process to hang on the LLM call (too computationally expensive?), splitting the string is a quick fix
-    # LLM returns a string with <summary> and </summary> tags, so we split the string into two parts and isolate the summary
+    # LLM returns a string with <summary> and </summary> tags, so we split the string twice to isolate the summary
     beginning_summary = response.content[0].text.split("<summary>")[1]
     summary = beginning_summary.split("</summary>")[0] # isolate the summary
     # TODO error handling
