@@ -90,16 +90,45 @@ class MCPClient:
 
         return f"Local Time: {local_time.strftime('%Y-%m-%d %H:%M:%S')}, UTC Time: {utc_time.strftime('%Y-%m-%d %H:%M:%S')}"
     
+    def is_time_or_date_request(self, user_message: str) -> bool:
+        """Detect if the user is asking for the current date and/or time."""
+
+        # Define common time/date request phrases
+        time_date_phrases = [
+            "what time is it",
+            "what is the time",
+            "give me the time",
+            "tell me the time",
+            "current time",
+            "want the date",
+            "want the time",
+            "want the time and date ",
+            "what is the date",
+            "give me the date",
+            "tell me the date",
+            "current date",
+            "what is the date and time",
+            "give me the date and time",
+            "can you tell me the time",
+            "can you tell me the date",
+            "date and time"
+        ]
+
+        # Lowercase the input for consistent comparison
+        user_message = user_message.lower().strip()
+
+        # Return True if any of the phrases match
+        return any(phrase in user_message for phrase in time_date_phrases)
+
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         if not messages:
             messages = []
 
 
-        if any(phrase in user_message.lower() for phrase in ["give me the time", "current time", "what time is it", "tell me the time"]):
+        if self.is_time_or_date_request(user_message):
             datetime_response = self.get_current_datetime()
-            chat_prompt = f"User asked for the current date and time.\n\nResponse: {datetime_response}\n\n"
-            messages.append({"role": "user", "content": chat_prompt})
-            return datetime_response
+            print(f"\n {datetime_response}\n")
+            return {"content": datetime_response}  # Return a JSON-like dict to avoid parsing errors
         else:
             chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
@@ -108,7 +137,7 @@ class MCPClient:
 
             
         response = self.chat.messages.create(
-                    model=model_name,
+            model=model_name,
             max_tokens=2048,
             messages=messages,
             tools=self.tools
@@ -124,6 +153,9 @@ class MCPClient:
         Check if the response contains a tool call and extract the relevant information.
         """
         try:
+            # Skip parsing if response is already in dict format (time/date)
+            if isinstance(response, dict) and "content" in response:
+                 return None  # No tool call, response was handled directly
             # Handle string response by parsing JSON
             if isinstance(response, str):
                 try:
@@ -172,32 +204,29 @@ class MCPClient:
     
     async def chat_loop(self):
         messages = []
-        user_message = input("User: ")
-        document_content = input("Document: ") # TODO make doc uploader + extractor
         while True:
-            # LLM call
+            user_message = input("User: ").strip()
+
+            # ✅ If the user asks for time/date, skip document prompt
+            if self.is_time_or_date_request(user_message):
+                datetime_response = self.get_current_datetime()
+                print(f"\n🕒 {datetime_response}\n")
+                continue  # Skip asking for a document
+
+            # 📄 For all other inputs, prompt for document content
+            document_content = input("Document: ")
+
+            # 📨 Send the message to the model
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
             print(response)
 
-            # Check if the user has asked for time info
-
-            if "current date and time" in user_message.lower():
-                print(f"LLM Response: {response}")
-
-
+            # 🔎 Check if a tool was called
             tool_call = self.check_tool_call(response)
             if tool_call:
-                # hardcoded tool call for now, TODO: parse tool call, match tool call to tool name
                 tool_response = await self.call_summarize_document_tool(tool_call)
                 print(tool_response)
-
-                # summary is a string right now
                 summary = tool_response.content[0].text
-                print(summary)
-
-
-
-            user_message = input("User: ")
+                print(summary)   
     
     async def cleanup(self):
         await self.exit_stack.aclose()
