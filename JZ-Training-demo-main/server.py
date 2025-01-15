@@ -102,16 +102,37 @@ async def list_tools() -> list[types.Tool]:
             description="Populates a database with selected data from user",
             inputSchema={
                 "name": "populate_database",
-                "required": ["data_input"],
+                "required": [
+                    "sql_server_url", 
+                    "sql_username", 
+                    "sql_password", 
+                    "amt_of_data_to_mock"
+                ],
                 "properties": {
-                    "data_input": {
-                        "type": "int", #Can eventually accept different data types beyond ints
-                        "description": "The data to put into a database"
+                    # "data_input": {
+                    #     "type": "int", #Can eventually accept different data types beyond ints
+                    #     "description": "The data to put into a database"
+                    # },
+                    "sql_server_url": {
+                        "type": "string",
+                        "description": "The SQL server connection url we would like to connect to."
                     },
-                    "user_message": {
-                        "type": "string", # in theory, the user is asking a question (string) to give our bot context
-                        "description": "The user's data"
+                    "sql_username": {
+                        "type": "string",
+                        "description": "The username for the SQL database."
                     },
+                    "sql_password": {
+                        "type": "string",
+                        "description": "The password for the user name that wants to sign into the SQL database"
+                    },
+                    "amt_of_data_to_mock": {
+                        "type": "int",
+                        "description": "The amount of SQL rows we would like to mock."
+                    },
+                    # "user_message": {
+                    #     "type": "string", # in theory, the user is asking a question (string) to give our bot context
+                    #     "description": "The user's data"
+                    # },
                     "messages": {
                         "type": "string",
                         "description": "The messages to send to the model"
