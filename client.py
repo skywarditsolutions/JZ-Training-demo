@@ -83,15 +83,26 @@ class MCPClient:
         tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
         return tool_call
     
-    def get_current_datetime(self):
+    def get_current_datetime(self, request_type="both"):
         """Get current date and time (system time or server time)."""
         
-        format_string = "%B %d, %Y %H:%M:%S" if self.time_format_24hr else "%B %d, %Y %I:%M:%S %p"
-    
+        format_date = "%B %d, %Y"
+        format_time_24hr = "%H:%M:%S"
+        format_time_12hr = "%I:%M:%S %p"
+
+        time_format = "%H:%M:%S" if self.time_format_24hr else "%I:%M:%S %p"
+
         local_time = datetime.now()
         utc_time = datetime.now(pytz.utc)
 
-        return f"Local Time: {local_time.strftime(format_string)}, UTC Time: {utc_time.strftime(format_string)}"
+
+        if request_type == "time":
+            return f"Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}"
+        elif request_type == "date":
+            return f"Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}"
+        else:  
+            return (f"Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}\n"
+                    f"Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}")
     
     def is_time_or_date_request(self, user_message: str) -> bool:
         """Detect if the user is asking for the current date and/or time."""
@@ -130,6 +141,25 @@ class MCPClient:
         # Return True if any of the phrases match
         return any(phrase in user_message for phrase in time_date_phrases)
 
+    def detect_datetime_request(self, user_message: str) -> str:
+        """
+        Detect if the user is asking for the date, time, or both.
+        Returns: 'time', 'date', 'both', or 'none'
+        """
+        message = user_message.lower()
+        
+        time_keywords = ["time", "current time", "what time", "tell me the time"]
+        date_keywords = ["date", "current date", "what date", "tell me the date"]
+        both_keywords = ["date and time", "time and date", "current date and time"]
+        
+        if any(phrase in user_message for phrase in both_keywords):
+            return "both"
+        elif any(phrase in user_message for phrase in time_keywords):
+            return "time"
+        elif any(phrase in user_message for phrase in date_keywords):
+            return "date"
+        else:
+            return "none"
 
     def toggle_time_format(self):
         """Toggle between 12-hour and 24-hour time formats."""
@@ -230,9 +260,10 @@ class MCPClient:
                 continue
 
             #  If the user asks for time/date, skip document prompt
-            if self.is_time_or_date_request(user_message):
-                datetime_response = self.get_current_datetime()
-                print(f"\n🕒 {datetime_response}\n")
+            datetime_request = self.detect_datetime_request(user_message)
+            if datetime_request != "none":
+                datetime_response = self.get_current_datetime(request_type=datetime_request)
+                print(f"\n {datetime_response}\n")
                 continue  # Skip asking for a document
 
             # For all other inputs, prompt for document content
