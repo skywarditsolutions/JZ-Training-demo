@@ -150,14 +150,18 @@ async def main():
             llm_text_response = llm_response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
             print("LLM: ", llm_text_response)
             messages.append({"role": "assistant", "content": llm_text_response}) 
-            # check if the response contains a tool call
-            tool_call = check_tool_call(llm_response)
-            if tool_call:
+            # tool call loop, continue until no tool call is found
+            while True:
+                tool_call = check_tool_call(llm_response)
+                if not tool_call:
+                    break
+                    
                 print("tool call: ", tool_call)
                 tool_response = await client.session.call_tool(tool_call.name, tool_call.input)
                 tool_result_text = tool_response.content[0].text
                 print("tool response: ", tool_result_text)
-                messages.append({"role": "user", "content": f"Tool result: {tool_result_text.strip()}"}) # final assistant content cannot end with trailing whitespace
+                messages.append({"role": "user", "content": f"Here is the tool result: {tool_result_text.strip()}"}) # final assistant content cannot end with trailing whitespace
+                
                 llm_response = chat.messages.create(
                     model=model_name,
                     max_tokens=2048,

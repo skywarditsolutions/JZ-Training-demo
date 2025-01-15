@@ -19,7 +19,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Only (?) supported model
 model_name="anthropic.claude-3-5-sonnet-20240620-v1:0"
 
 chat = AnthropicBedrock()
@@ -27,17 +26,17 @@ chat = AnthropicBedrock()
 mcp = FastMCP("Summarizer")
 
 @mcp.tool()
-async def test_regex(regex_pattern: str, text_to_search: str, answer_text: str)->str:
-    """Test regex pattern on text to search and verify against answer text"""
+async def test_regex(regex_pattern: str, text_to_search: str)->str:
+    """Test regex pattern on text to search and return the captured groups"""
     try:
-        match = re.search(regex_pattern, text_to_search)    
-        if match:
-            match_text = match.group(0)
-            match_text_equals_answer_text = match_text == answer_text
-            if match_text_equals_answer_text:
-                return "Regex pattern found in text"
-            else:
-                return "Regex pattern not found in text"
+        print(f"regex_pattern: {regex_pattern}, text_to_search: {text_to_search}")
+        pattern = re.compile(regex_pattern)
+        matches = pattern.findall(text_to_search)    
+        print(f"matches: {matches}")
+        if matches:
+            match_text = ', '.join(str(match) for match in matches)
+            result_text = f"The regex pattern captured the following groups: {match_text}"
+            return result_text
         else:
             return "Regex pattern not found in text"
     except Exception as e:
@@ -108,22 +107,18 @@ async def list_tools() -> list[types.Tool]:
     return [
         types.Tool(
             name="test_regex",
-            description="Test regex pattern on text to search and verify if it matches the answer text",
+            description="Test regex pattern on text to search and return the captured groups",
             inputSchema={
                 "name": "test_regex",
                 "required": ["regex_pattern", "text_to_search", "answer_text"],
                 "properties": {
                     "regex_pattern": {
                         "type": "string",
-                        "description": "The regex pattern to test"
+                        "description": "The regex pattern to test, this will be compiled with python's re.compile()"
                     },
                     "text_to_search": {
                         "type": "string",
                         "description": "The text to search"
-                    },
-                    "answer_text": {
-                        "type": "string",
-                        "description": "The answer text to verify against"
                     }
                 }
             }
