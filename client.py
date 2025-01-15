@@ -27,6 +27,7 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.chat = AnthropicBedrock()
         self.tools = []
+        self.time_format_24hr = True
     
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
@@ -85,10 +86,12 @@ class MCPClient:
     def get_current_datetime(self):
         """Get current date and time (system time or server time)."""
         
+        format_string = "%B %d, %Y %H:%M:%S" if self.time_format_24hr else "%B %d, %Y %I:%M:%S %p"
+    
         local_time = datetime.now()
         utc_time = datetime.now(pytz.utc)
 
-        return f"Local Time: {local_time.strftime('%Y-%B-%d %H:%M:%S')}, UTC Time: {utc_time.strftime('%Y-%B-%d %H:%M:%S')}"
+        return f"Local Time: {local_time.strftime(format_string)}, UTC Time: {utc_time.strftime(format_string)}"
     
     def is_time_or_date_request(self, user_message: str) -> bool:
         """Detect if the user is asking for the current date and/or time."""
@@ -106,12 +109,19 @@ class MCPClient:
             "what is the date",
             "give me the date",
             "tell me the date",
+            "give me time",
+            "give me date",
+            "give me time and date",
             "current date",
             "what is the date and time",
             "give me the date and time",
             "can you tell me the time",
             "can you tell me the date",
-            "date and time"
+            "date and time",
+            "can i get the date",
+            "can i get the time",
+            "can i get the date and time",
+            "can i get the time and date"
         ]
 
         # Lowercase the input for consistent comparison
@@ -119,6 +129,13 @@ class MCPClient:
 
         # Return True if any of the phrases match
         return any(phrase in user_message for phrase in time_date_phrases)
+
+
+    def toggle_time_format(self):
+        """Toggle between 12-hour and 24-hour time formats."""
+        self.time_format_24hr = not self.time_format_24hr
+        mode = "24-hour" if self.time_format_24hr else "12-hour"
+        print(f"✅ Time format switched to {mode} mode.")
 
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         if not messages:
@@ -206,6 +223,11 @@ class MCPClient:
         messages = []
         while True:
             user_message = input("User: ").strip()
+
+            if user_message.lower() in ["switch to 12-hour", "switch to 24-hour", "switch time format",
+                                        "change time format", "12 hour" "24 hour", "switch format"]:
+                self.toggle_time_format()
+                continue
 
             #  If the user asks for time/date, skip document prompt
             if self.is_time_or_date_request(user_message):
