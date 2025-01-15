@@ -82,30 +82,28 @@ class MCPClient:
     
     
     
-    def send_message(self, document_content: str,truthdoc_content : str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+    def send_message(self, document_content: str, truthdoc_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
         This method sends a message to the LLM and returns the response
-
-        Args:
-            document_content: The content of the document to be summarized
-            (optional) user_message: The user's message to the LLM
-            (optional) messages: The list of messages of the chat history
-
-        Returns:
-            response: The response from the LLM
         """
-        # if no messages, create a new list and inital chat message
         if not messages:
             messages = []
-            chat_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests.\n\n"
-            chat_prompt += "User request: " + user_message + "\n\n"
-            chat_prompt += "Document content: " + document_content + "\n\n"
-            chat_prompt += "Truth Document content: " + truthdoc_content + "\n\n"
-            messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
-        else:
-            messages.append({"role": "user", "content": user_message})
-
-        # send messages to the LLM
+            system_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests."
+            messages.append({"role": "user", "content": system_prompt})
+        
+        # Construct the full message with all components
+        full_message = ""
+        if user_message:
+            full_message += f"User request: {user_message}\n\n"
+        if document_content:
+            full_message += f"Document content: {document_content}\n\n"
+        if truthdoc_content:
+            full_message += f"Truth Document content: {truthdoc_content}"
+        
+        # Add the constructed message to conversation history
+        messages.append({"role": "user", "content": full_message})
+        
+        # Send messages to the LLM
         response = self.chat.messages.create(
             model=model_name,
             max_tokens=2048,
@@ -151,28 +149,53 @@ class MCPClient:
     
     async def chat_loop(self):
         messages = []
-        user_message = input("User: ")
-        # have hardcoded news story for now
-        document_content = input("Document: ")
-        truthdoc_content = input("Truth Document: ")
-
         while True:
-            
-            # send inputs to the LLM and get response
-            response = self.send_message(document_content=document_content,truthdoc_content=truthdoc_content,user_message=user_message, messages=messages)
-            llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
-            print("LLM: ", llm_text_response)
-            messages.append({"role": "assistant", "content": llm_text_response}) 
-            # check if the response contains a tool call
-            tool_call = self.check_tool_call(response)
-            if tool_call:
-                tool_response = await self.call_compare_documents_tool(tool_call)
-                summary = tool_response.content[0].text
-                print("summary: ", summary)
-                messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})# final assistant content cannot end with trailing whitespace
-            else:
-                messages.append({"role": "assistant", "content": llm_text_response})
             user_message = input("User: ")
+            
+            # If user wants to compare documents, get new document inputs
+            if "compare" in user_message.lower():
+                document_content = input("Document: ")
+                truthdoc_content = input("Truth Document: ")
+                
+                # Create a new message that includes both the user request and document contents
+                comparison_message = f"""User request: {user_message}
+
+    Document content: {document_content}
+
+    Truth Document content: {truthdoc_content}"""
+                
+                # Send the combined message to the LLM
+                response = self.send_message(
+                    document_content=document_content,
+                    truthdoc_content=truthdoc_content,
+                    user_message=comparison_message,
+                    messages=messages
+                )
+                
+                llm_text_response = response.content[0].text.strip()
+                print("LLM: ", llm_text_response)
+                messages.append({"role": "assistant", "content": llm_text_response})
+                
+                # Check for tool call
+                tool_call = self.check_tool_call(response)
+                if tool_call:
+                    tool_response = await self.call_compare_documents_tool(tool_call)
+                    summary = tool_response.content[0].text
+                    print("Tool summary: ", summary)
+                    # Add tool response to chat history
+                    messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})
+                    
+            else:
+                # Handle regular conversation
+                response = self.send_message(
+                    document_content="",
+                    truthdoc_content="",
+                    user_message=user_message,
+                    messages=messages
+                )
+                llm_text_response = response.content[0].text.strip()
+                print("LLM: ", llm_text_response)
+                messages.append({"role": "assistant", "content": llm_text_response})
     
     async def cleanup(self):
         await self.exit_stack.aclose()
