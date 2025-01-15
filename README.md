@@ -45,7 +45,7 @@ This example demonstrates the MCP using standard input/output.
 To run:
 
 ```
-python client.py server.py
+python stdio_client.py stdio_server.py
 ```
 
 ## Example 2: Independent Client and Server
@@ -55,13 +55,13 @@ This example shows the MCP using independent client and server processes connect
 1. In one terminal, start the server:
 
 ```
-python independent_server.py
+python sse_server.py
 ```
 
 2. In another terminal, start the client:
 
 ```
-python independent_client.py
+python sse_client.py
 ```
 
 The client and server are configured to connect over `localhost:5553`.

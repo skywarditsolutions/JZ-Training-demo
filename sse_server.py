@@ -2,6 +2,7 @@
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
 #import PyPDF2
+import re
 import io
 from typing import Any
 #import asyncio
@@ -26,6 +27,23 @@ chat = AnthropicBedrock()
 mcp = FastMCP("Summarizer")
 
 @mcp.tool()
+async def test_regex(regex_pattern: str, text_to_search: str, answer_text: str)->str:
+    """Test regex pattern on text to search and verify against answer text"""
+    try:
+        match = re.search(regex_pattern, text_to_search)    
+        if match:
+            match_text = match.group(0)
+            match_text_equals_answer_text = match_text == answer_text
+            if match_text_equals_answer_text:
+                return "Regex pattern found in text"
+            else:
+                return "Regex pattern not found in text"
+        else:
+            return "Regex pattern not found in text"
+    except Exception as e:
+        return f"Error: {e}"
+
+@mcp.tool()
 async def fetch_bitcoin_price()->str:
     """Fetches the current Bitcoin price from Coingecko"""
     try:
@@ -42,7 +60,7 @@ async def fetch_bitcoin_price()->str:
             # Extract the Bitcoin price in USD
             bitcoin_price = data['bitcoin']['usd']
             
-            return bitcoin_price
+            return f"The current Bitcoin price is {bitcoin_price} USD."
         else:
             print(f"Error: Unable to fetch data. Status code: {response.status_code}")
             return None
@@ -88,6 +106,28 @@ async def list_tools() -> list[types.Tool]:
     List the tools available to the LLM
     """
     return [
+        types.Tool(
+            name="test_regex",
+            description="Test regex pattern on text to search and verify if it matches the answer text",
+            inputSchema={
+                "name": "test_regex",
+                "required": ["regex_pattern", "text_to_search", "answer_text"],
+                "properties": {
+                    "regex_pattern": {
+                        "type": "string",
+                        "description": "The regex pattern to test"
+                    },
+                    "text_to_search": {
+                        "type": "string",
+                        "description": "The text to search"
+                    },
+                    "answer_text": {
+                        "type": "string",
+                        "description": "The answer text to verify against"
+                    }
+                }
+            }
+        ),
         types.Tool(
             name="fetch_bitcoin_price",
             description="Fetches the current Bitcoin price from Coingecko",
