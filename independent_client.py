@@ -28,6 +28,7 @@ class MCPClient:
     async def connect_to_server(self, server_url: str):
         """Connect to an MCP Server
         """
+        print('check check, is this thing tapped?')
         # connect to the server
         sse_transport = await self.exit_stack.enter_async_context(sse_client(server_url))
         sse_recv, sse_sent = sse_transport
@@ -43,25 +44,37 @@ class MCPClient:
 
             print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, tool_call):
-        """
-        This method handles the tool call from the LLM and passes it to the server
-        Args:
-            LLM_tool_call: The tool call from the LLM
+    # async def call_summarize_document_tool(self, tool_call):
+    #     """
+    #     This method handles the tool call from the LLM and passes it to the server
+    #     Args:
+    #         LLM_tool_call: The tool call from the LLM
             
-        Returns:
-            tool_call: The tool call response from the MCP server
+    #     Returns:
+    #         tool_call: The tool call response from the MCP server
+    #     """
+    #     # call tool over the MCP connection established in connect_to_server, takes in tool name and args
+    #     tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
+    #     return tool_result
+    
+    async def call_populate_database_tool(self, tool_call):
+        """"
+        This method sends a tool call to populate a database(given data from user input) to the server and returns the response.
+        Args:
+                LLM_tool_call: The tool call from the LLM
+                
+            Returns:
+                tool_call: The tool call response from the MCP server
         """
-        # call tool over the MCP connection established in connect_to_server, takes in tool name and args
         tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
         return tool_result
-    
-    def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+        
+    def send_message(self, data_input: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
         This method sends a message to the LLM and returns the response
 
         Args:
-            document_content: The content of the document to be summarized
+            data_input: The data to be inserted and processed
             (optional) user_message: The user's message to the LLM
             (optional) messages: The list of messages of the chat history
 
@@ -73,14 +86,14 @@ class MCPClient:
             messages = []
             chat_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
-            chat_prompt += "Document content: " + document_content + "\n\n"
+            chat_prompt += "Data Input: " + data_input + "\n\n"
             messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
         else:
             messages.append({"role": "user", "content": user_message})
 
         # send messages to the LLM
         response = self.chat.messages.create(
-                    model=model_name,
+            model=model_name,
             max_tokens=2048,
             messages=messages,
             tools=self.tools
@@ -126,23 +139,26 @@ class MCPClient:
         messages = []
         user_message = input("User: ")
         # have hardcoded news story for now
-        document_content = input("Document to summarize (leave blank for hardcoded news story): ")
+        data_input = input("Data to enter and process: ")
 
         while True:
             # LLM call
-            if document_content == "":
-                document_content = fake_news_story # have a hardcoded news story for testing
+            if data_input == "":
+                # This is a fallback for if the data input is empty.
+                data_input = "Please tell us the current state of the band Celtic Frost, or if not available, of its frontman Tom G. Warrior or his other band Triptykon."
+                print('data input about best band in the world, Celtic Frost:', data_input)
+                # data_input = fake_news_story # have a hardcoded news story for testing
             if user_message == "": # if user presses enter without typing anything, continue
                 continue
             # send inputs to the LLM and get response
-            response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
+            response = self.send_message(user_message=user_message, data_input=data_input, messages=messages)
             llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
             print("LLM: ", llm_text_response)
             messages.append({"role": "assistant", "content": llm_text_response}) 
             # check if the response contains a tool call
             tool_call = self.check_tool_call(response)
             if tool_call:
-                tool_response = await self.call_summarize_document_tool(tool_call)
+                tool_response = await self.call_populate_database_tool(tool_call)
                 tool_result_text = tool_response.content[0].text
                 print("tool response: ", tool_result_text)
                 messages.append({"role": "assistant", "content": f"Tool summary: {tool_result_text.strip()}"})# final assistant content cannot end with trailing whitespace
@@ -175,23 +191,25 @@ def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
     return reformatted_tools
 
 
-fake_news_story = """
-Gas Flare Bitcoin Miners Cut Methane Emissions in Permian Basin
-MIDLAND, TX - A consortium of Bitcoin mining operations in West Texas reported today that their gas reclamation efforts have prevented over 180,000 metric tons of methane from entering the atmosphere in the past year. By capturing and utilizing natural gas that would otherwise be flared at oil well sites, these mining operations are turning what was once waste into both cryptocurrency and environmental benefits.
-"We're essentially monetizing waste gas while reducing greenhouse gas emissions," explained Sarah Chen, CEO of GreenHash Solutions, one of the leading companies in the initiative. "The same energy that would have been burned off into the atmosphere is now powering our mining rigs, and we're seeing real environmental impact."
-Independent environmental assessments confirm that these operations have reduced methane emissions equivalent to removing 40,000 cars from the road. The success has drawn attention from other oil-producing regions looking to replicate the model.
-Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
-"""
+# fake_news_story = """
+# Gas Flare Bitcoin Miners Cut Methane Emissions in Permian Basin
+# MIDLAND, TX - A consortium of Bitcoin mining operations in West Texas reported today that their gas reclamation efforts have prevented over 180,000 metric tons of methane from entering the atmosphere in the past year. By capturing and utilizing natural gas that would otherwise be flared at oil well sites, these mining operations are turning what was once waste into both cryptocurrency and environmental benefits.
+# "We're essentially monetizing waste gas while reducing greenhouse gas emissions," explained Sarah Chen, CEO of GreenHash Solutions, one of the leading companies in the initiative. "The same energy that would have been burned off into the atmosphere is now powering our mining rigs, and we're seeing real environmental impact."
+# Independent environmental assessments confirm that these operations have reduced methane emissions equivalent to removing 40,000 cars from the road. The success has drawn attention from other oil-producing regions looking to replicate the model.
+# Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
+# """
 
 
 async def main():
     client = MCPClient()
-        
+    print('CLIENT HERE', client)
     try:
         await client.connect_to_server("http://localhost:5553/sse")
-        await client.chat_loop()
+        response = await client.chat_loop()
+        print('response', response)
     finally:
         await client.cleanup()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
