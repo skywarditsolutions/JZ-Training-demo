@@ -4,6 +4,9 @@ import os
 import re
 from typing import Optional
 from contextlib import AsyncExitStack
+from difflib import get_close_matches
+import sys
+from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -28,7 +31,58 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.chat = AnthropicBedrock()
         self.tools = []
-    
+        self.comparison_words = [
+            "compare", "comparison", "difference", "differences", "diff",
+            "contrast", "versus", "vs", "distinction", "distinguish",
+            "analyze", "check", "review", "examine", "look at"
+        ]
+    def get_multiline_input(self, prompt: str) -> str:
+        """
+        Gets multiline input from user until they enter a blank line or EOF
+        """
+        print(f"{prompt} (Enter a blank line or Ctrl+D when done):")
+        lines = []
+        try:
+            while True:
+                line = input()
+                if line.strip() == "":
+                    break
+                lines.append(line)
+        except EOFError:
+            pass
+        
+        return "\n".join(lines)
+
+    def read_file_content(self, file_path: str) -> str:
+        """
+        Reads content from a file, handling different file types
+        """
+        try:
+            file_path = Path(file_path)
+            if not file_path.exists():
+                print(f"Error: File {file_path} does not exist")
+                return ""
+                
+            # Read file content based on extension
+            content = file_path.read_text(encoding='utf-8')
+            return content
+            
+        except Exception as e:
+            print(f"Error reading file: {e}")
+            return ""
+
+    def get_document_input(self, prompt: str) -> str:
+        """
+        Gets document content either from file or direct input
+        """
+        input_type = input(f"{prompt}\nEnter 'file' to provide a file path, or 'text' to enter text directly: ").lower()
+        
+        if input_type == 'file':
+            file_path = input("Enter file path: ")
+            return self.read_file_content(file_path)
+        else:
+            return self.get_multiline_input("Enter your text")
+        
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
         
@@ -81,7 +135,30 @@ class MCPClient:
         return tool_result
     
     
-    
+    def is_comparison_request(self, user_message: str) -> bool:
+        """
+        Check if the user's message is requesting a comparison,
+        using fuzzy matching to catch typos and variations
+        """
+        # Convert message to lowercase and split into words
+        user_words = user_message.lower().split()
+        
+        # Check each word in the user's message
+        for word in user_words:
+            # Use get_close_matches to find similar words
+            matches = get_close_matches(word, self.comparison_words, n=1, cutoff=0.8)
+            if matches:
+                return True
+                
+        # Check for common two-word phrases
+        message = user_message.lower()
+        two_word_phrases = ["look at", "side by"]
+        if any(phrase in message for phrase in two_word_phrases):
+            return True
+            
+        return False
+ 
+
     def send_message(self, document_content: str, truthdoc_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
         This method sends a message to the LLM and returns the response
@@ -153,16 +230,24 @@ class MCPClient:
             user_message = input("User: ")
             
             # If user wants to compare documents, get new document inputs
-            if "compare" in user_message.lower():
-                document_content = input("Document: ")
-                truthdoc_content = input("Truth Document: ")
+            if self.is_comparison_request(user_message):
+                # Get document contents using new input methods
+                document_content = self.get_document_input("Document")
+                if not document_content:
+                    print("No content provided for first document. Please try again.")
+                    continue
+                    
+                truthdoc_content = self.get_document_input("Truth Document")
+                if not truthdoc_content:
+                    print("No content provided for second document. Please try again.")
+                    continue
                 
-                # Create a new message that includes both the user request and document contents
-                comparison_message = f"""User request: {user_message}
+                comparison_message = f"""
+                    User request: {user_message}
 
-    Document content: {document_content}
+                    Document content: {document_content}
 
-    Truth Document content: {truthdoc_content}"""
+                    Truth Document content: {truthdoc_content}"""
                 
                 # Send the combined message to the LLM
                 response = self.send_message(
