@@ -88,7 +88,7 @@ class MCPClient:
         local_time = datetime.now()
         utc_time = datetime.now(pytz.utc)
 
-        return f"Local Time: {local_time.strftime('%Y-%m-%d %H:%M:%S')}, UTC Time: {utc_time.strftime('%Y-%m-%d %H:%M:%S')}"
+        return f"Local Time: {local_time.strftime('%Y-%B-%d %H:%M:%S')}, UTC Time: {utc_time.strftime('%Y-%B-%d %H:%M:%S')}"
     
     def is_time_or_date_request(self, user_message: str) -> bool:
         """Detect if the user is asking for the current date and/or time."""
@@ -207,20 +207,20 @@ class MCPClient:
         while True:
             user_message = input("User: ").strip()
 
-            # ✅ If the user asks for time/date, skip document prompt
+            #  If the user asks for time/date, skip document prompt
             if self.is_time_or_date_request(user_message):
                 datetime_response = self.get_current_datetime()
                 print(f"\n🕒 {datetime_response}\n")
                 continue  # Skip asking for a document
 
-            # 📄 For all other inputs, prompt for document content
+            # For all other inputs, prompt for document content
             document_content = input("Document: ")
 
-            # 📨 Send the message to the model
+            #  Send the message to the model
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
             print(response)
 
-            # 🔎 Check if a tool was called
+            # Check if a tool was called
             tool_call = self.check_tool_call(response)
             if tool_call:
                 tool_response = await self.call_summarize_document_tool(tool_call)

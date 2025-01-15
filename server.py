@@ -50,7 +50,7 @@ async def summarize_document(document_content: str) -> str:
 async def get_current_datetime() -> str:
     """Returns the current date and time in 'YYYY-MM-DD HH:MM:SS' format."""
     now = datetime.now()
-    return now.strftime("%Y-%m-%d %H:%M:%S")
+    return now.strftime("%Y-%B-%d %H:%M:%S")
 
 
 # modified from fastMCP example
