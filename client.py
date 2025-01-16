@@ -4,8 +4,10 @@ import os
 import re
 from typing import Optional
 from contextlib import AsyncExitStack
+# get_close_matches allows 
 from difflib import get_close_matches
 import sys
+#allows you to input the file path that you downloaded onto computer
 from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
@@ -31,14 +33,22 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.chat = AnthropicBedrock()
         self.tools = []
+        #words that could indicate comparing
         self.comparison_words = [
             "compare", "comparison", "difference", "differences", "diff",
             "contrast", "versus", "vs", "distinction", "distinguish",
             "analyze", "check", "review", "examine", "look at"
         ]
+        self.summary_words = [
+            "summarize", "summary", "outline", "overview", "recap",
+            "digest", "brief", "gist", "roundup", "synopsis",
+            "sum up", "wrap up", "highlight", "breakdown", "abstract"
+        ]
     def get_multiline_input(self, prompt: str) -> str:
         """
         Gets multiline input from user until they enter a blank line or EOF
+        **when you enter a text, make sure you press enter twice because it looks for 
+            multiline = more than 1 line**
         """
         print(f"{prompt} (Enter a blank line or Ctrl+D when done):")
         lines = []
@@ -55,7 +65,7 @@ class MCPClient:
 
     def read_file_content(self, file_path: str) -> str:
         """
-        Reads content from a file, handling different file types
+        Reads content from a file, handling different file types (File i/o)
         """
         try:
             file_path = Path(file_path)
@@ -63,7 +73,7 @@ class MCPClient:
                 print(f"Error: File {file_path} does not exist")
                 return ""
                 
-            # Read file content based on extension
+            # reads file content based on extension
             content = file_path.read_text(encoding='utf-8')
             return content
             
@@ -76,7 +86,7 @@ class MCPClient:
         Gets document content either from file or direct input
         """
         input_type = input(f"{prompt}\nEnter 'file' to provide a file path, or 'text' to enter text directly: ").lower()
-        
+        #calls read_file_content method to read the file given the path of the file from the user
         if input_type == 'file':
             file_path = input("Enter file path: ")
             return self.read_file_content(file_path)
@@ -85,12 +95,12 @@ class MCPClient:
         
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
-        
-        Args: server_script_path (str): The path to the python server script (.py)"""
+           Args: server_script_path (str): The path to the python server script (.py)
+        """
+        #checks for python only
         is_python = server_script_path.endswith(".py")
         if not is_python:
             raise ValueError("Server script must be a Python script (.py)")
-        
         # only python for now
         server_params = StdioServerParameters(
             command="python", args=[server_script_path], env=None
@@ -157,9 +167,30 @@ class MCPClient:
             return True
             
         return False
- 
+    def is_summarize_request(self, user_message: str) -> bool:
+        """
+        Check if the user's message is requesting a comparison,
+        using fuzzy matching to catch typos and variations
+        """
+        # Convert message to lowercase and split into words
+        user_words = user_message.lower().split()
+        
+        # Check each word in the user's message
+        for word in user_words:
+            # Use get_close_matches to find similar words
+            matches = get_close_matches(word, self.summary_words, n=1, cutoff=0.8)
+            if matches:
+                return True
+                
+        # Check for common two-word phrases
+        message = user_message.lower()
+        two_word_phrases = ["main point", "overal idea"]
+        if any(phrase in message for phrase in two_word_phrases):
+            return True
+            
+        return False
 
-    def send_message(self, document_content: str, truthdoc_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+    def send_message(self, document_content: str, truthdoc_content: Optional[str] = None, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
         This method sends a message to the LLM and returns the response
         """
@@ -229,7 +260,6 @@ class MCPClient:
         while True:
             user_message = input("User: ")
             
-            # If user wants to compare documents, get new document inputs
             if self.is_comparison_request(user_message):
                 # Get document contents using new input methods
                 document_content = self.get_document_input("Document")
@@ -242,18 +272,11 @@ class MCPClient:
                     print("No content provided for second document. Please try again.")
                     continue
                 
-                comparison_message = f"""
-                    User request: {user_message}
-
-                    Document content: {document_content}
-
-                    Truth Document content: {truthdoc_content}"""
-                
-                # Send the combined message to the LLM
+                # Send the message without duplicating content
                 response = self.send_message(
                     document_content=document_content,
                     truthdoc_content=truthdoc_content,
-                    user_message=comparison_message,
+                    user_message=user_message,  # Just send original user message
                     messages=messages
                 )
                 
@@ -270,6 +293,35 @@ class MCPClient:
                     # Add tool response to chat history
                     messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})
                     
+            elif self.is_summarize_request(user_message):
+                document_content = self.get_document_input("Document")
+                if not document_content:
+                    print("No content provided for first document. Please try again.")
+                    continue
+
+                summary_message = f"""
+                    User request: {user_message}
+                    Document content: {document_content}"""
+                
+                response = self.send_message(
+                    document_content=document_content,
+                    user_message=summary_message,
+                    messages=messages
+                )
+                
+                llm_text_response = response.content[0].text.strip()
+                print("LLM: ", llm_text_response)
+                messages.append({"role": "assistant", "content": llm_text_response})
+                
+                # Check for tool call
+                tool_call = self.check_tool_call(response)
+                if tool_call:
+                    tool_response = await self.call_summarize_document_tool(tool_call)
+                    summary = tool_response.content[0].text
+                    print("Tool summary: ", summary)
+                    # Add tool response to chat history
+                    messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})
+
             else:
                 # Handle regular conversation
                 response = self.send_message(
@@ -308,8 +360,6 @@ def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
 
 def to_kebab_case(camel_str: str) -> str:
     return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()
-
-
 
 async def main():
     if len(sys.argv) < 2:

@@ -51,37 +51,72 @@ async def comparison_documents(document_content: str, truthdoc_content: str) -> 
     # TODO error handling
     return summary
 
+@mcp.tool()
+async def summarize_document(document_content: str) -> str:
+    """Analyze Text content
+    Args:
+        document_content: The content of the document to analyze
+
+    Returns:
+        LLM response obj with summary of the document
+    """
+
+    messages = []
+    # claude SDK doesn't let you do system prompt?
+    user_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
+    user_prompt += f"\n\nDocument content: {document_content}"
+    messages.append({"role": "user", "content": user_prompt}) # passing in as user message
+    
+    # send messages to the LLM
+    response = chat.messages.create(
+                model=model_name,
+        max_tokens=2048,
+        messages=messages
+    )
+    # originally wanted to use re.search(?<=<summary>)(.*?)(?=</summary>)
+    # regex would cause the process to hang on the LLM call (too computationally expensive?), splitting the string is a quick fix
+    # LLM returns a string with <summary> and </summary> tags, so we split the string twice to isolate the summary
+    beginning_summary = response.content[0].text.split("<summary>")[1]
+    summary = beginning_summary.split("</summary>")[0] # isolate the summary
+    # TODO error handling
+    return summary
+
 # modified from fastMCP example
 #  @mcp.list_tools() not necessary for fastMCP
-async def list_tools() -> list[types.Tool]:
-    return [
-        types.Tool(
-            name="comparison_documents",
-            description="Analyze texts and identify and show differences",
-            inputSchema={
-                "name": "comparison_documents",
-                "required": ["document_content"],
-                "properties": {
-                    "truthdoc_content": {
-                        "type": "string",
-                        "description": "The verified document that the document_content will be compared to"
-                    },
-                    "document_content": {
-                        "type": "string",
-                        "description": "The content of the document to analyze"
-                    },
-                    "user_message": {
-                        "type": "string",
-                        "description": "The user's message"
-                    },
-                    "messages": {
-                        "type": "array",
-                        "description": "The messages to send to the model"
-                    }
-                }
+# For comparison tool
+types.Tool(
+    name="comparison_documents",
+    description="Analyze texts and identify and show differences",
+    inputSchema={
+        "name": "comparison_documents",
+        "required": ["document_content", "truthdoc_content"],  # Both required
+        "properties": {
+            "truthdoc_content": {
+                "type": "string",
+                "description": "The verified document that the document_content will be compared to"
+            },
+            "document_content": {
+                "type": "string",
+                "description": "The content of the document to analyze"
             }
-        )
-    ]
+        }
+    }
+),
+# For summarize tool
+types.Tool(
+    name="summarize_document",  # Fix name to match function
+    description="Analyze and summarize document content",
+    inputSchema={
+        "name": "summarize_document",
+        "required": ["document_content"],
+        "properties": {
+            "document_content": {
+                "type": "string",
+                "description": "The content of the document to analyze"
+            }
+        }
+    }
+)
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
