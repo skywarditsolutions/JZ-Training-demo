@@ -2,7 +2,7 @@
 to run
 
 `pip install -r requirements.txt`
-'pip install pytz'
+pip install geopy timezonefinder arrow tzlocal pytz
 
 `python client.py server.py`
 
