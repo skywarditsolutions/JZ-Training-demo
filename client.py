@@ -41,16 +41,6 @@ class MCPClient:
     # Mapping from common city names to timezones (expand this as needed)
 
     city_to_timezone = {
-        "new york": "America/New_York",
-        "tokyo": "Asia/Tokyo",
-        "london": "Europe/London",
-        "paris": "Europe/Paris",
-        "berlin": "Europe/Berlin",
-        "sydney": "Australia/Sydney",
-        "dubai": "Asia/Dubai",
-        "los angeles": "America/Los_Angeles",
-        "mumbai": "Asia/Kolkata",
-        "singapore": "Asia/Singapore",
     }
 
     # List of all available time zones
