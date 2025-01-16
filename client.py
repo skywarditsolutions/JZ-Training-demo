@@ -29,6 +29,25 @@ class MCPClient:
         self.tools = []
         self.time_format_24hr = True
     
+    # Mapping from common city names to timezones (expand this as needed)
+
+    city_to_timezone = {
+        "new york": "America/New_York",
+        "tokyo": "Asia/Tokyo",
+        "london": "Europe/London",
+        "paris": "Europe/Paris",
+        "berlin": "Europe/Berlin",
+        "sydney": "Australia/Sydney",
+        "dubai": "Asia/Dubai",
+        "los angeles": "America/Los_Angeles",
+        "mumbai": "Asia/Kolkata",
+        "singapore": "Asia/Singapore",
+    }
+
+    # List of all available time zones
+    def list_all_timezones(self):
+        return pytz.all_timezones
+
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
             This method sets up a connection to a Python-based MCP server by:
@@ -83,7 +102,7 @@ class MCPClient:
         tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
         return tool_call
     
-    def get_current_datetime(self, request_type="both"):
+    def get_current_datetime(self, request_type="both", timezone=None):
         """Get current date and time (system time or server time)."""
         
         format_date = "%B %d, %Y"
@@ -95,14 +114,24 @@ class MCPClient:
         local_time = datetime.now()
         utc_time = datetime.now(pytz.utc)
 
+        if timezone:
+            if timezone in pytz.all_timezones:
+                timezone_obj = pytz.timezone(timezone)
+                local_time = datetime.now(timezone_obj)
+                utc_time = datetime.now(pytz.utc)
+            else:
+                return f"❌ Invalid timezone: {timezone}. Please provide a valid timezone."
+        else:
+            # Return default (UTC) time if no timezone is specified
+            return f"❌ No timezone specified. Please provide a city for timezone detection."
 
         if request_type == "time":
-            return f"Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}"
+            return f"🕒 Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}"
         elif request_type == "date":
-            return f"Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}"
+            return f"📅 Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}"
         else:  
-            return (f"Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}\n"
-                    f"Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}")
+            return (f"📅 Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}\n"
+                    f"🕒 Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}")
     
     def is_time_or_date_request(self, user_message: str) -> bool:
         """Detect if the user is asking for the current date and/or time."""
@@ -171,17 +200,31 @@ class MCPClient:
         if not messages:
             messages = []
 
-
         if self.is_time_or_date_request(user_message):
-            datetime_response = self.get_current_datetime()
+            # Detect timezone based on user message
+            timezone = None
+            for city, tz in self.city_to_timezone.items():
+                if city in user_message.lower():
+                    timezone = tz
+                    break
+            
+            if timezone:
+                print(f"User requested time in timezone: {timezone}")
+                datetime_response = self.get_current_datetime(request_type="both", timezone=timezone)
+            
+            else:
+                print(f"No recognized timezone found in the message.")
+                # Provide feedback for missing timezone or default to UTC
+                datetime_response = "❌ Could not detect a timezone from your query. Please provide a valid city for timezone information."
+            
             print(f"\n {datetime_response}\n")
             return {"content": datetime_response}  # Return a JSON-like dict to avoid parsing errors
+        
         else:
             chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt})
-
             
         response = self.chat.messages.create(
             model=model_name,
@@ -262,6 +305,12 @@ class MCPClient:
             #  If the user asks for time/date, skip document prompt
             datetime_request = self.detect_datetime_request(user_message)
             if datetime_request != "none":
+                timezone = None
+                for city, tz in self.city_to_timezone.items():
+                    if city in user_message.lower():
+                        timezone = tz
+                        break
+
                 datetime_response = self.get_current_datetime(request_type=datetime_request)
                 print(f"\n {datetime_response}\n")
                 continue  # Skip asking for a document
