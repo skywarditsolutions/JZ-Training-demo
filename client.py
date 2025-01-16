@@ -42,7 +42,6 @@ class MCPClient:
         self.tz_finder = TimezoneFinder()
     
 
-
     # List of all available time zones
     def list_all_timezones(self):
         return pytz.all_timezones
