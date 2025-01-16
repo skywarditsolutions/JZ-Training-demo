@@ -103,35 +103,38 @@ class MCPClient:
         return tool_call
     
     def get_current_datetime(self, request_type="both", timezone=None):
-        """Get current date and time (system time or server time)."""
-        
+        """
+        Get the current date and/or time in the specified timezone.
+        Defaults to local system time if no timezone is provided.
+        """
         format_date = "%B %d, %Y"
         format_time_24hr = "%H:%M:%S"
         format_time_12hr = "%I:%M:%S %p"
 
-        time_format = "%H:%M:%S" if self.time_format_24hr else "%I:%M:%S %p"
+        time_format = format_time_24hr if self.time_format_24hr else format_time_12hr
 
-        local_time = datetime.now()
-        utc_time = datetime.now(pytz.utc)
-
-        if timezone:
-            if timezone in pytz.all_timezones:
+        # If timezone is provided, use it. Otherwise, use the system's local timezone.
+        try:
+            if timezone:
                 timezone_obj = pytz.timezone(timezone)
                 local_time = datetime.now(timezone_obj)
-                utc_time = datetime.now(pytz.utc)
             else:
-                return f"❌ Invalid timezone: {timezone}. Please provide a valid timezone."
-        else:
-            # Return default (UTC) time if no timezone is specified
-            return f"❌ No timezone specified. Please provide a city for timezone detection."
+            # Default to system's local timezone if no timezone detected
+                local_time = datetime.now()
+        
+            utc_time = datetime.now(pytz.utc)
 
-        if request_type == "time":
-            return f"🕒 Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}"
-        elif request_type == "date":
-            return f"📅 Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}"
-        else:  
-            return (f"📅 Local Date: {local_time.strftime('%B %d, %Y')}, UTC Date: {utc_time.strftime('%B %d, %Y')}\n"
-                    f"🕒 Local Time: {local_time.strftime(time_format)}, UTC Time: {utc_time.strftime(time_format)}")
+            if request_type == "time":
+                return f"🕒 Local Time: {local_time.strftime(time_format)}"
+            elif request_type == "date":
+                return f"📅 Local Date: {local_time.strftime(format_date)}"
+            else:
+                return (f"📅 Local Date: {local_time.strftime(format_date)}\n"
+                    f"🕒 Local Time: {local_time.strftime(time_format)}")
+        
+        except pytz.UnknownTimeZoneError:
+            return "❌ Invalid timezone. Please provide a valid city."
+
     
     def is_time_or_date_request(self, user_message: str) -> bool:
         """Detect if the user is asking for the current date and/or time."""
@@ -190,6 +193,14 @@ class MCPClient:
         else:
             return "none"
 
+    def detect_timezone(self, user_message: str) -> Optional[str]:
+        """Detect timezone from user message by matching known cities."""
+        user_message = user_message.lower()
+        for city, timezone in self.city_to_timezone.items():
+            if city in user_message:
+                return timezone  # Return the timezone if the city is found
+        return None 
+
     def toggle_time_format(self):
         """Toggle between 12-hour and 24-hour time formats."""
         self.time_format_24hr = not self.time_format_24hr
@@ -202,30 +213,19 @@ class MCPClient:
 
         if self.is_time_or_date_request(user_message):
             # Detect timezone based on user message
-            timezone = None
-            for city, tz in self.city_to_timezone.items():
-                if city in user_message.lower():
-                    timezone = tz
-                    break
-            
-            if timezone:
-                print(f"User requested time in timezone: {timezone}")
-                datetime_response = self.get_current_datetime(request_type="both", timezone=timezone)
-            
-            else:
-                print(f"No recognized timezone found in the message.")
-                # Provide feedback for missing timezone or default to UTC
-                datetime_response = "❌ Could not detect a timezone from your query. Please provide a valid city for timezone information."
-            
+            timezone = self.detect_timezone(user_message)  # Detect timezone or None
+
+            # Always provide a response (default to local time if no timezone detected)
+            datetime_response = self.get_current_datetime(request_type="both", timezone=timezone)
+
             print(f"\n {datetime_response}\n")
             return {"content": datetime_response}  # Return a JSON-like dict to avoid parsing errors
-        
         else:
             chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt})
-            
+
         response = self.chat.messages.create(
             model=model_name,
             max_tokens=2048,
@@ -305,14 +305,11 @@ class MCPClient:
             #  If the user asks for time/date, skip document prompt
             datetime_request = self.detect_datetime_request(user_message)
             if datetime_request != "none":
-                timezone = None
-                for city, tz in self.city_to_timezone.items():
-                    if city in user_message.lower():
-                        timezone = tz
-                        break
+                timezone = self.detect_timezone(user_message)
 
-                datetime_response = self.get_current_datetime(request_type=datetime_request)
-                print(f"\n {datetime_response}\n")
+                # Call the updated datetime method with the detected timezone
+                datetime_response = self.get_current_datetime(request_type=datetime_request, timezone=timezone)
+                print(f"\n{datetime_response}\n")
                 continue  # Skip asking for a document
 
             # For all other inputs, prompt for document content
