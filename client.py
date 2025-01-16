@@ -10,8 +10,15 @@ from mcp.client.stdio import stdio_client
 
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
-from datetime import datetime
+
+from geopy.geocoders import Nominatim
+from timezonefinder import TimezoneFinder
+from tzlocal import get_localzone_name
+
+#from datetime import datetime
 import pytz
+import arrow
+
 
 import mcp.types as types
 
@@ -28,6 +35,8 @@ class MCPClient:
         self.chat = AnthropicBedrock()
         self.tools = []
         self.time_format_24hr = True
+        self.geolocator = Nominatim(user_agent="timezone_detector")
+        self.tz_finder = TimezoneFinder()
     
     # Mapping from common city names to timezones (expand this as needed)
 
@@ -105,37 +114,31 @@ class MCPClient:
     def get_current_datetime(self, request_type="both", timezone=None):
         """
         Get the current date and/or time in the specified timezone.
-        Defaults to local system time if no timezone is provided.
+        Defaults to system's local timezone if no timezone is provided.
         """
-        format_date = "%B %d, %Y"
-        format_time_24hr = "%H:%M:%S"
-        format_time_12hr = "%I:%M:%S %p"
+        time_format = "HH:mm:ss" if self.time_format_24hr else "hh:mm:ss A"
+        date_format = "MMMM DD, YYYY"
 
-        time_format = format_time_24hr if self.time_format_24hr else format_time_12hr
-
-        # If timezone is provided, use it. Otherwise, use the system's local timezone.
         try:
+            # 🌍 Use detected timezone or system timezone
             if timezone:
-                timezone_obj = pytz.timezone(timezone)
-                local_time = datetime.now(timezone_obj)
+                current_time = arrow.now(timezone)
             else:
-            # Default to system's local timezone if no timezone detected
-                local_time = datetime.now()
-        
-            utc_time = datetime.now(pytz.utc)
+                current_time = arrow.now()
 
+            # 🕒 Format the response
             if request_type == "time":
-                return f"🕒 Local Time: {local_time.strftime(time_format)}"
+                return f"🕒 Local Time: {current_time.format(time_format)}"
             elif request_type == "date":
-                return f"📅 Local Date: {local_time.strftime(format_date)}"
+                return f"📅 Local Date: {current_time.format(date_format)}"
             else:
-                return (f"📅 Local Date: {local_time.strftime(format_date)}\n"
-                    f"🕒 Local Time: {local_time.strftime(time_format)}")
-        
-        except pytz.UnknownTimeZoneError:
-            return "❌ Invalid timezone. Please provide a valid city."
+                return (f"📅 Local Date: {current_time.format(date_format)}\n"
+                        f"🕒 Local Time: {current_time.format(time_format)}")
 
-    
+        except Exception as e:
+            return f"❌ Error fetching time: {e}"
+
+
     def is_time_or_date_request(self, user_message: str) -> bool:
         """Detect if the user is asking for the current date and/or time."""
 
@@ -194,12 +197,39 @@ class MCPClient:
             return "none"
 
     def detect_timezone(self, user_message: str) -> Optional[str]:
-        """Detect timezone from user message by matching known cities."""
-        user_message = user_message.lower()
-        for city, timezone in self.city_to_timezone.items():
-            if city in user_message:
-                return timezone  # Return the timezone if the city is found
-        return None 
+        """
+        Detect the timezone from the user's input using geolocation.
+        """
+        try:
+            # Clean the user input for better detection
+            location_query = re.sub(r'[^a-zA-Z\s]', '', user_message).strip().lower()
+
+            # Extract the likely city name (assumes 'in <city>' structure)
+            city_match = re.search(r'in (.+)', location_query)
+            city_name = city_match.group(1) if city_match else location_query
+
+            print(f"🔎 Searching for location: {city_name}")
+
+            # Attempt to geocode the extracted city name
+            location = self.geolocator.geocode(city_name, timeout=10)  # Increase timeout
+
+            if location:
+                # Convert the detected location into a timezone
+                timezone = self.tz_finder.timezone_at(lng=location.longitude, lat=location.latitude)
+                if timezone:
+                    print(f"🛰️ Detected Timezone: {timezone}")
+                    return timezone
+                else:
+                    print("⚠️ Could not determine timezone from coordinates.")
+            else:
+                print("⚠️ Geolocation failed. No result found.")
+
+        except Exception as e:
+            print(f"⚠️ Error detecting timezone: {e}")
+
+        # Fallback to system timezone if detection fails
+        return None
+
 
     def toggle_time_format(self):
         """Toggle between 12-hour and 24-hour time formats."""
