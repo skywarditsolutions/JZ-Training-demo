@@ -14,6 +14,14 @@ load_dotenv()
 
 from anthropic import AnthropicBedrock
 
+#this is the date time stuff
+from geopy.geocoders import Nominatim
+from timezonefinder import TimezoneFinder
+from tzlocal import get_localzone_name
+import pytz
+import arrow
+
+
 import mcp.types as types
 
 #from haystack.components.builders.prompt_builder import PromptBuilder
@@ -28,7 +36,15 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.chat = AnthropicBedrock()
         self.tools = []
+        self.time_format_24hr = True
+        self.geolocator = Nominatim(user_agent="timezone_detector")
+        self.tz_finder = TimezoneFinder()
     
+
+    # List of all available time zones
+    def list_all_timezones(self):
+        return pytz.all_timezones
+
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
         
@@ -84,7 +100,18 @@ class MCPClient:
         # if no messages, create a new list and inital chat message
         if not messages:
             messages = []
-            chat_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests.\n\n"
+
+        if self.is_time_or_date_request(user_message):
+            # Detect timezone based on user message
+            timezone = self.detect_timezone(user_message)  # Detect timezone or None
+
+            # Always provide a response (default to local time if no timezone detected)
+            datetime_response = self.get_current_datetime(request_type="both", timezone=timezone)
+
+            print(f"\n {datetime_response}\n")
+            return {"content": datetime_response}  # Return a JSON-like dict to avoid parsing errors
+        else:
+            chat_prompt = "You are a helpful API, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
@@ -137,17 +164,28 @@ class MCPClient:
     
     def chat_loop(self):
         messages = []
-        user_message = input("User: ")
-        # have hardcoded news story for now
-        document_content = input("Document to summarize (leave blank for hardcoded news story): ")
-
         while True:
-            # LLM call
-            if document_content == "":
-                document_content = fake_news_story # hardcoding a news story for convenience
-            if user_message == "": # if user presses enter without typing anything, continue
+            user_message = input("User: ").strip()
+
+            if user_message.lower() in ["switch to 12-hour", "switch to 24-hour", "switch time format",
+                                        "change time format", "12 hour" "24 hour", "switch format"]:
+                self.toggle_time_format()
                 continue
-            # send inputs to the LLM and get response
+
+            #  If the user asks for time/date, skip document prompt
+            datetime_request = self.detect_datetime_request(user_message)
+            if datetime_request != "none":
+                timezone = self.detect_timezone(user_message)
+
+                # Call the updated datetime method with the detected timezone
+                datetime_response = self.get_current_datetime(request_type=datetime_request, timezone=timezone)
+                print(f"\n{datetime_response}\n")
+                continue  # Skip asking for a document
+
+            # For all other inputs, prompt for document content
+            document_content = input("Document: ")
+
+            #  Send the message to the model
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
             llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
             print("LLM: ", llm_text_response)
@@ -156,6 +194,9 @@ class MCPClient:
             tool_call = self.check_tool_call(response)
             if tool_call:
                 tool_response = await self.call_summarize_document_tool(tool_call)
+                print(tool_response)
+
+                # summary is a string right now
                 summary = tool_response.content[0].text
                 print("summary: ", summary)
                 messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})# final assistant content cannot end with trailing whitespace
