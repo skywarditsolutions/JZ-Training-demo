@@ -20,12 +20,8 @@ This repository demonstrates the use of Anthropic's Model Context Protocol (MCP)
   cd JZ-Training-demo
 ```
 
-2. Create a new environment and install the required dependencies:
+2. Install the required dependencies:
 
-```
-python3 -m venv venv
-source venv/bin/activate
-```
   ```
   pip install -r requirements.txt
 ```
