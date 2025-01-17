@@ -11,11 +11,10 @@ from mcp.client.stdio import stdio_client
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
 
+#this is the date time stuff
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
 from tzlocal import get_localzone_name
-
-#from datetime import datetime
 import pytz
 import arrow
 
