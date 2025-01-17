@@ -10,6 +10,7 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 from anthropic import AnthropicBedrock
+from datetime import datetime #This is a test
 
 from dotenv import load_dotenv
 
@@ -24,6 +25,14 @@ mcp = FastMCP("Comparison")
 
 
 @mcp.tool()
+async def summarize_document(document_content: str) -> str:
+    """Analyze Text content
+    Args:
+        document_content: The content of the document to analyze
+
+    Returns:
+        LLM response obj with summary of the document
+    """
 async def comparison_documents(document_content: str, truthdoc_content: str) -> str:
     """Analyze Text content"""
 
@@ -37,7 +46,7 @@ async def comparison_documents(document_content: str, truthdoc_content: str) -> 
     user_prompt += f"\n\nDocument content: {document_content}, Truthdoc content : {truthdoc_content}"
     messages.append({"role": "user", "content": user_prompt}) # passing in as user message
     
-
+    # send messages to the LLM
     response = chat.messages.create(
                 model=model_name,
         max_tokens=2048,
@@ -83,6 +92,34 @@ async def summarize_document(document_content: str) -> str:
 
 # modified from fastMCP example
 #  @mcp.list_tools() not necessary for fastMCP
+async def list_tools() -> list[types.Tool]:
+    """
+    List the tools available to the LLM
+    """
+    return [
+        types.Tool(
+            name="summarize_document",
+            description="Analyze text and provide a summary",
+            inputSchema={
+                "name": "summarize_document",
+                "required": ["document_content"],
+                "properties": {
+                    "document_content": {
+                        "type": "string",
+                        "description": "The content of the document to analyze"
+                    },
+                    "user_message": {
+                        "type": "string",
+                        "description": "The user's message"
+                    },
+                    "messages": {
+                        "type": "array",
+                        "description": "The messages to send to the model"
+                    }
+                }
+            }
+        )
+    ]
 # For comparison tool
 types.Tool(
     name="comparison_documents",

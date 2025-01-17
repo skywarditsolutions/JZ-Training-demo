@@ -17,13 +17,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
+load_dotenv()
+
 from anthropic import AnthropicBedrock
 
 import mcp.types as types
 
 #from haystack.components.builders.prompt_builder import PromptBuilder
 
-load_dotenv()
+
 
 # Only (?) supported model
 model_name="anthropic.claude-3-5-sonnet-20240620-v1:0"
@@ -102,8 +105,9 @@ class MCPClient:
         await self.session.initialize()
 
         response = await self.session.list_tools()
-        formatted_tools = reformat_tools_description_for_anthropic(response.tools)
+        formatted_tools = reformat_tools_description(response.tools)
         self.tools = formatted_tools
+        #self.tools = test_dummy_tools()
         #self.tools = test_dummy_tools()
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
@@ -203,10 +207,13 @@ class MCPClient:
         # Send messages to the LLM
         response = self.chat.messages.create(
             model=model_name,
+            model=model_name,
             max_tokens=2048,
             messages=messages,
             tools=self.tools
         )
+        return response
+    
         return response
     
     def check_tool_call(self, response):
@@ -217,8 +224,19 @@ class MCPClient:
 
         Returns:
             tool_call: The tool call response from the server
+        Args:
+            response: The full object response from the LLM
+
+        Returns:
+            tool_call: The tool call response from the server
         """
         try:
+            if response.stop_reason == "tool_use":
+                print("type is tool_use")
+                return response.content[1] # response format is [chat_message, tool_call]
+        
+            # return false if no tool call is found
+            return False
             if response.stop_reason == "tool_use":
                 print("type is tool_use")
                 return response.content[1] # response format is [chat_message, tool_call]
@@ -233,6 +251,8 @@ class MCPClient:
     def get_user_input(self):
         """parse multiline input"""
         # TODO: finish this function
+        """parse multiline input"""
+        # TODO: finish this function
         lines = []
         print("User: ")
 
@@ -245,7 +265,7 @@ class MCPClient:
                 break
         return lines
     
-    async def chat_loop(self):
+    def chat_loop(self):
         messages = []
         while True:
             user_message = input("User: ")
@@ -336,12 +356,21 @@ def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
     Returns:
         reformatted_tools: The list of reformatted tools with snake_case input_schema
     """
+    """
+    Reformat the tools description for anthropic
+    Args:
+        tools: The list of tools to be reformatted
+
+    Returns:
+        reformatted_tools: The list of reformatted tools with snake_case input_schema
+    """
     # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
     reformatted_tools = []
     for tool in tools:
         current_tool = {
             "name": tool.name,
             "description": tool.description,
+            "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic can use it
             "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic can use it
         }
         reformatted_tools.append(current_tool)
