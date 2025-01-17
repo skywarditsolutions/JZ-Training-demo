@@ -95,6 +95,21 @@ class MCPClient:
 
             print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
+
+    async def call_summarize_document_tool(self, tool_call):
+        """
+        This method handles the tool call from the LLM and passes it to the server
+        Args:
+            LLM_tool_call: The tool call from the LLM
+            
+        Returns:
+            tool_call: The tool call response from the MCP server
+        """
+        # call tool over the MCP connection established in connect_to_server, takes in tool name and args
+        tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
+        return tool_result
+    
+    
 #------------ THE LLM TOOL CALL IS DIFFERENT FROM TOOL_CALL
     async def call_summarize_document_tool(self, tool_call):
         """

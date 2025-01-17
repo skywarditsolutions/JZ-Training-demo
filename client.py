@@ -9,6 +9,9 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from dotenv import load_dotenv
+
+load_dotenv()
+
 from anthropic import AnthropicBedrock
 
 from geopy.geocoders import Nominatim
@@ -24,7 +27,7 @@ import mcp.types as types
 
 #from haystack.components.builders.prompt_builder import PromptBuilder
 
-load_dotenv()
+
 
 # Only (?) supported model
 model_name="anthropic.claude-3-5-sonnet-20240620-v1:0"
@@ -38,10 +41,7 @@ class MCPClient:
         self.geolocator = Nominatim(user_agent="timezone_detector")
         self.tz_finder = TimezoneFinder()
     
-    # Mapping from common city names to timezones (expand this as needed)
 
-    city_to_timezone = {
-    }
 
     # List of all available time zones
     def list_all_timezones(self):
@@ -49,58 +49,34 @@ class MCPClient:
 
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
-            This method sets up a connection to a Python-based MCP server by:
-        1. Validating the server script file extension
-        2. Creating a stdio transport connection
-        3. Initializing a client session
-        4. Retrieving and reformatting available tools
-
-        Args:
-            server_script_path: Path to the Python server script file (.py extension)
-
-        Raises:
-            ValueError: If the provided script path doesn't end with .py extension
-            
-        Returns:
-            None: Updates instance attributes (stdio, write, session, tools) as side effects
-            
-        """
         
-        # validate the server script is a python script
+        Args: server_script_path (str): The path to the python server script (.py)"""
         is_python = server_script_path.endswith(".py")
         if not is_python:
             raise ValueError("Server script must be a Python script (.py)")
         
         # only python for now
-        # Configure and establish stdio transport connection
-        # StdioServerParameters specifies how to spawn and communicate with the server process
         server_params = StdioServerParameters(
             command="python", args=[server_script_path], env=None
         )
-
-        # Create transport layer using context manager to ensure proper cleanup
         stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
 
-        # Unpack transport handles for reading and writing
         self.stdio, self.write = stdio_transport
         self.session = await self.exit_stack.enter_async_context(ClientSession(self.stdio, self.write))
 
         await self.session.initialize()
 
-        # Retrieve available tools from server and reformat for Anthropic compatibility
         response = await self.session.list_tools()
-        formatted_tools = reformat_tools_description_for_anthropic(response.tools)
+        formatted_tools = reformat_tools_description(response.tools)
         self.tools = formatted_tools
-
+        #self.tools = test_dummy_tools()
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, LLM_tool_call):
-        print("LLM tool call: ")
-        print(LLM_tool_call)
-        tool_name = to_kebab_case(LLM_tool_call["name"])
-        tool_call = await self.session.call_tool(tool_name, LLM_tool_call["input"])
+    def tool_call(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[str]] = None):
+        tool_call = self.session.tool_call(document_content, user_message, messages)
         return tool_call
     
+<<<<<<< HEAD
     def get_current_datetime(self, request_type="both", timezone=None):
         """
         Get the current date and/or time in the specified timezone.
@@ -227,9 +203,15 @@ class MCPClient:
         mode = "24-hour" if self.time_format_24hr else "12-hour"
         print(f"✅ Time format switched to {mode} mode.")
 
+=======
+    
+    
+>>>>>>> cbdab44 (commitTest)
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+        print(self.tools)
         if not messages:
             messages = []
+<<<<<<< HEAD
 
         if self.is_time_or_date_request(user_message):
             # Detect timezone based on user message
@@ -245,6 +227,18 @@ class MCPClient:
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt})
+=======
+            system_prompt = "We are testing a tool calling model, reply with a choice of available tools."
+            messages.append({"role": "user", "content": system_prompt}) # passing in as user message
+
+        content = ""
+        if user_message:
+            content = f"Document content: {document_content}\n\nUser message: {user_message}"
+        else: 
+            content = f"Document content: {document_content}"
+        
+        messages.append({"role": "user", "content": content})
+>>>>>>> cbdab44 (commitTest)
 
         response = self.chat.messages.create(
             model=model_name,
@@ -253,7 +247,11 @@ class MCPClient:
             tools=self.tools
         )
         return response.content
+
+    def parse_tool_call(self, response):
+        print(response)
     
+<<<<<<< HEAD
     def process_LLM_response(self, response):
         pass
 
@@ -299,8 +297,9 @@ class MCPClient:
             print(f"Error checking tool call: {e}")
             return None
 
+=======
+>>>>>>> cbdab44 (commitTest)
     def get_user_input(self):
-        """todo, parse multiline input"""
         lines = []
         print("User: ")
 
@@ -312,9 +311,10 @@ class MCPClient:
                 break
         return lines
     
-    async def chat_loop(self):
+    def chat_loop(self):
         messages = []
         while True:
+<<<<<<< HEAD
             user_message = input("User: ").strip()
 
             if user_message.lower() in ["switch to 12-hour", "switch to 24-hour", "switch time format",
@@ -346,12 +346,24 @@ class MCPClient:
                 print(tool_response)
                 summary = tool_response.content[0].text
                 print(summary)   
+=======
+            # initial LLM call
+            response = self.send_message(user_message, document_content, messages)
+            print(response)
+            tool_call = self.parse_tool_call(response)
+            if tool_call:
+                tool_response = self.tool_call(tool_call)
+                print(tool_response)
+
+            
+            user_message = input("User: ")
+>>>>>>> cbdab44 (commitTest)
     
     async def cleanup(self):
         await self.exit_stack.aclose()
 
-def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
-    # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
+def reformat_tools_description(tools: list[types.Tool]):
+    # MCP library changes the tool name to camelCase, so we need to reformat it
     reformatted_tools = []
     for tool in tools:
         current_tool = {
@@ -362,15 +374,6 @@ def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
         reformatted_tools.append(current_tool)
 
     return reformatted_tools
-
-
-fake_news_story = """
-Gas Flare Bitcoin Miners Cut Methane Emissions in Permian Basin
-MIDLAND, TX - A consortium of Bitcoin mining operations in West Texas reported today that their gas reclamation efforts have prevented over 180,000 metric tons of methane from entering the atmosphere in the past year. By capturing and utilizing natural gas that would otherwise be flared at oil well sites, these mining operations are turning what was once waste into both cryptocurrency and environmental benefits.
-"We're essentially monetizing waste gas while reducing greenhouse gas emissions," explained Sarah Chen, CEO of GreenHash Solutions, one of the leading companies in the initiative. "The same energy that would have been burned off into the atmosphere is now powering our mining rigs, and we're seeing real environmental impact."
-Independent environmental assessments confirm that these operations have reduced methane emissions equivalent to removing 40,000 cars from the road. The success has drawn attention from other oil-producing regions looking to replicate the model.
-Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
-"""
 
 def to_kebab_case(camel_str: str) -> str:
     return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()

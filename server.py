@@ -10,7 +10,11 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 from anthropic import AnthropicBedrock
+<<<<<<< HEAD
 from datetime import datetime 
+=======
+from datetime import datetime #This is a test
+>>>>>>> cbdab44 (commitTest)
 
 from dotenv import load_dotenv
 
