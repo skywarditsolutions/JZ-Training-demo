@@ -23,7 +23,7 @@ import mcp.types as types
 
 #from haystack.components.builders.prompt_builder import PromptBuilder
 
-
+load_dotenv()
 
 # Only (?) supported model
 model_name="anthropic.claude-3-5-sonnet-20240620-v1:0"
@@ -46,23 +46,12 @@ class MCPClient:
         ]
     def get_multiline_input(self, prompt: str) -> str:
         """
-        Gets multiline input from user until they enter a blank line or EOF
-        **when you enter a text, make sure you press enter twice because it looks for 
-            multiline = more than 1 line**
+        Gets single line input from user
         """
-        print(f"{prompt} (Enter a blank line or Ctrl+D when done):")
-        lines = []
         try:
-            while True:
-                line = input()
-                if line.strip() == "":
-                    break
-                lines.append(line)
+            return input(f"{prompt}: ")
         except EOFError:
-            pass
-        
-        return "\n".join(lines)
-
+            return ""
     def read_file_content(self, file_path: str) -> str:
         """
         Reads content from a file, handling different file types (File i/o)
@@ -86,13 +75,13 @@ class MCPClient:
         Gets document content either from file or direct input
         """
         input_type = input(f"{prompt}\nEnter 'file' to provide a file path, or 'text' to enter text directly: ").lower()
-        #calls read_file_content method to read the file given the path of the file from the user
+        
         if input_type == 'file':
             file_path = input("Enter file path: ")
             return self.read_file_content(file_path)
         else:
             return self.get_multiline_input("Enter your text")
-        
+            
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
            Args: server_script_path (str): The path to the python server script (.py)
@@ -249,8 +238,9 @@ class MCPClient:
 
         while True:
             try: 
-                line = input()
-                lines.append(line)
+                return input("User: ")
+                # line = input()
+                # lines.append(line)
             except EOFError:
                 break
         return lines
