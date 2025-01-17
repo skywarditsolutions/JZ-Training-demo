@@ -45,7 +45,7 @@ async def summarize_document(document_content: str) -> str:
     return response.content
 
 
-# 🕒 New Tool: Get Current Date and Time
+# Tool: Get Current Date and Time
 @mcp.tool()
 async def get_current_datetime() -> str:
     """Returns the current date and time in 'YYYY-MM-DD HH:MM:SS' format."""
