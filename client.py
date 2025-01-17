@@ -97,6 +97,9 @@ class MCPClient:
         Returns:
             tool_call: The tool call response from the MCP server
         """
+        # MCP library changes the tool name to kebab case, so we need to reformat it so the server can use it
+        tool_name = to_camel_case(tool_call.name)
+        
         # call tool over the MCP connection established in connect_to_server, takes in tool name and args
         tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
         return tool_result
