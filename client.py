@@ -266,6 +266,8 @@ class MCPClient:
             messages.append({"role": "user", "content": chat_prompt})
             system_prompt = "We are testing a tool calling model, reply with a choice of available tools."
             messages.append({"role": "user", "content": system_prompt}) # passing in as user message
+        else:
+            messages.append({"role": "user", "content": user_message})
 
         # TODO handle repeated chat messages
         content = ""
@@ -283,7 +285,7 @@ class MCPClient:
             messages=messages,
             tools=self.tools
         )
-        return response.content
+        return response
 
     def parse_tool_call(self, response):
         print(response)
@@ -296,7 +298,7 @@ class MCPClient:
         """
         Check if the response contains a tool call and extract the relevant information.
         Args:
-            response: The response from the LLM
+            response: The full object response from the LLM
 
         Returns:
             tool_call: The tool call response from the server
@@ -305,24 +307,25 @@ class MCPClient:
             # Skip parsing if response is already in dict format (time/date)
             if isinstance(response, dict) and "content" in response:
                  return None  # No tool call, response was handled directly
+            content = response.content
             # if response is a string, try to parse it as JSON
-            if isinstance(response, str):
+            if isinstance(content, str):
                 try:
-                    response = json.loads(response)
+                    response = json.loads(content)
                 except json.JSONDecodeError:
                     print("Failed to parse response as JSON")
                     return None
 
             # if response is a list/array, look for tool_use block
-            if isinstance(response, list):
-                for block in response:
+            if isinstance(content, list):
+                for block in content:
                     # Handle custom objects and check for a tool use attribute/property
                     if hasattr(block, 'type') and block.type == 'tool_use':
                         return block.__dict__ if hasattr(block, '__dict__') else block
             
             # Check if block is a dictionary with a 'type' key that matches tool_use
-            elif isinstance(response, dict) and response.get("type") == "tool_use":
-                return response
+            elif isinstance(content, dict) and content.get("type") == "tool_use":
+                return content
         
             # return false if no tool call is found
             return False
@@ -374,19 +377,18 @@ class MCPClient:
 
             #  Send the message to the model
             response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
-            print(response)
+            llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
+            print("LLM: ", llm_text_response)
+            messages.append({"role": "assistant", "content": llm_text_response}) 
             # check if the response contains a tool call
             tool_call = self.check_tool_call(response)
             if tool_call:
-                # hardcoded specific tool call for now, TODO: parse tool call, match tool call to tool name
                 tool_response = await self.call_summarize_document_tool(tool_call)
-                print(tool_response)
-
-                # summary is a string right now that represents a TextBlock(text="[llm summary]", type="text")
-                # TODO: parse summary better and add to message history
                 summary = tool_response.content[0].text
-                print(summary)   
-=======
+                print("summary: ", summary)   
+                messages.append({"role": "assistant", "content": summary.strip()})
+            else:
+                messages.append({"role": "assistant", "content": llm_text_response})=======
             # initial LLM call
             response = self.send_message(user_message, document_content, messages)
             print(response)
