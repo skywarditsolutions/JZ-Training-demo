@@ -10,7 +10,11 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 from anthropic import AnthropicBedrock
+<<<<<<< HEAD
 from datetime import datetime 
+=======
+from datetime import datetime #This is a test
+>>>>>>> intern-dev
 
 from dotenv import load_dotenv
 
@@ -28,7 +32,13 @@ mcp = FastMCP("Summarizer")
 
 @mcp.tool()
 async def summarize_document(document_content: str) -> str:
-    """Analyze Text content"""
+    """Analyze Text content
+    Args:
+        document_content: The content of the document to analyze
+
+    Returns:
+        LLM response obj with summary of the document
+    """
 
     messages = []
     # claude SDK doesn't let you do system prompt?
@@ -36,13 +46,19 @@ async def summarize_document(document_content: str) -> str:
     user_prompt += f"\n\nDocument content: {document_content}"
     messages.append({"role": "user", "content": user_prompt}) # passing in as user message
     
-
+    # send messages to the LLM
     response = chat.messages.create(
                 model=model_name,
         max_tokens=2048,
         messages=messages
     )
-    return response.content
+    # originally wanted to use re.search(?<=<summary>)(.*?)(?=</summary>)
+    # regex would cause the process to hang on the LLM call (too computationally expensive?), splitting the string is a quick fix
+    # LLM returns a string with <summary> and </summary> tags, so we split the string twice to isolate the summary
+    beginning_summary = response.content[0].text.split("<summary>")[1]
+    summary = beginning_summary.split("</summary>")[0] # isolate the summary
+    # TODO error handling
+    return summary
 
 
 # Tool: Get Current Date and Time
@@ -56,6 +72,9 @@ async def get_current_datetime() -> str:
 # modified from fastMCP example
 #  @mcp.list_tools() not necessary for fastMCP
 async def list_tools() -> list[types.Tool]:
+    """
+    List the tools available to the LLM
+    """
     return [
         types.Tool(
             name="summarize_document",

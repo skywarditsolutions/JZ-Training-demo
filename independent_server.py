@@ -11,7 +11,10 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 from anthropic import AnthropicBedrock
+<<<<<<< HEAD
 from datetime import datetime 
+=======
+>>>>>>> intern-dev
 
 import requests
 
@@ -82,6 +85,7 @@ async def summarize_document(document_content: str) -> str:
     # TODO error handling
     return summary
 
+<<<<<<< HEAD
 # Tool: Get Current Date and Time
 @mcp.tool()
 async def get_current_datetime() -> str:
@@ -89,6 +93,8 @@ async def get_current_datetime() -> str:
     now = datetime.now()
     return now.strftime("%Y-%B-%d %H:%M:%S")
 
+=======
+>>>>>>> intern-dev
 # modified from fastMCP example
 #  @mcp.list_tools() not necessary for fastMCP
 async def list_tools() -> list[types.Tool]:
@@ -124,11 +130,14 @@ async def list_tools() -> list[types.Tool]:
                     }
                 }
             }
+<<<<<<< HEAD
         ),
         types.Tool(
             name="get_current_datetime",
             description="Returns the current date and time.",
             inputSchema={}
+=======
+>>>>>>> intern-dev
         )
     ]
 

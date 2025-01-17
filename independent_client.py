@@ -11,6 +11,7 @@ from mcp.client.sse import sse_client
 from dotenv import load_dotenv
 from anthropic import AnthropicBedrock
 
+<<<<<<< HEAD
 #this is the date time stuff
 from geopy.geocoders import Nominatim
 from timezonefinder import TimezoneFinder
@@ -18,6 +19,8 @@ from tzlocal import get_localzone_name
 import pytz
 import arrow
 
+=======
+>>>>>>> intern-dev
 import mcp.types as types
 
 
@@ -31,6 +34,7 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.chat = AnthropicBedrock()
         self.tools = []
+<<<<<<< HEAD
 
         #date time stuff
         self.time_format_24hr = True
@@ -42,6 +46,9 @@ class MCPClient:
         return pytz.all_timezones
     
 
+=======
+    
+>>>>>>> intern-dev
     async def connect_to_server(self, server_url: str):
         """Connect to an MCP Server
         """
@@ -73,6 +80,7 @@ class MCPClient:
         tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
         return tool_result
     
+<<<<<<< HEAD
     def get_current_datetime(self, request_type="both", timezone=None):
         """
         Get the current date and/or time in the specified timezone.
@@ -199,6 +207,8 @@ class MCPClient:
         print(f"✅ Time format switched to {mode} mode.")
 
 
+=======
+>>>>>>> intern-dev
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
         This method sends a message to the LLM and returns the response
@@ -214,6 +224,7 @@ class MCPClient:
         # if no messages, create a new list and inital chat message
         if not messages:
             messages = []
+<<<<<<< HEAD
 
             if self.is_time_or_date_request(user_message):
             # Detect timezone based on user message
@@ -225,6 +236,8 @@ class MCPClient:
             print(f"\n {datetime_response}\n")
             return {"content": datetime_response}  # Return a JSON-like dict to avoid parsing errors
         elif:
+=======
+>>>>>>> intern-dev
             chat_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests.\n\n"
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
