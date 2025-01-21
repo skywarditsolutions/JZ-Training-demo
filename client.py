@@ -152,7 +152,7 @@ class MCPClient:
                 break
         return lines
     
-    def chat_loop(self):
+    async def chat_loop(self):
         messages = []
         user_message = input("User: ")
         # have hardcoded news story for now
@@ -231,7 +231,7 @@ async def main():
 
 if __name__ == "__main__":
     import sys
-    asyncio.run(main())import asyncio
+    import asyncio
 import json
 import os
 import re
@@ -476,8 +476,8 @@ class MCPClient:
             messages.append({"role": "user", "content": chat_prompt})
             system_prompt = "We are testing a tool calling model, reply with a choice of available tools."
             messages.append({"role": "user", "content": system_prompt}) # passing in as user message
-        else:
-            messages.append({"role": "user", "content": user_message})
+        # else:
+        #     messages.append({"role": "user", "content": user_message})
 
         # TODO handle repeated chat messages
         content = ""
@@ -594,7 +594,7 @@ class MCPClient:
                 print("summary: ", summary)
                 messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})# final assistant content cannot end with trailing whitespace
             else:
-                messages.append({"role": "assistant", "content": llm_text_response})=======
+                messages.append({"role": "assistant", "content": llm_text_response})
             # initial LLM call
             response = self.send_message(user_message, document_content, messages)
             print(response)
