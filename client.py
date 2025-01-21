@@ -65,7 +65,7 @@ class MCPClient:
         await self.session.initialize()
 
         response = await self.session.list_tools()
-        formatted_tools = reformat_tools_description(response.tools)
+        formatted_tools = reformat_tools_description_for_anthropic(response.tools)
         self.tools = formatted_tools
         #self.tools = test_dummy_tools()
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
@@ -115,8 +115,8 @@ class MCPClient:
             chat_prompt += "User request: " + user_message + "\n\n"
             chat_prompt += "Document content: " + document_content + "\n\n"
             messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
-        else:
-            messages.append({"role": "user", "content": user_message})
+        #else:
+            #messages.append({"role": "user", "content": user_message})
 
         # send messages to the LLM
         response = self.chat.messages.create(
@@ -162,7 +162,7 @@ class MCPClient:
                 break
         return lines
     
-    def chat_loop(self):
+    async def chat_loop(self):
         messages = []
         while True:
             user_message = input("User: ").strip()

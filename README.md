@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # mcp-demo
 to run
 
@@ -79,4 +78,3 @@ The client and server are configured to connect over `localhost:5553`.
 ## How it Works
 
 These examples illustrate the Model Context Protocol from Anthropic. The MCP client runs a chatbot loop that can utilize tools from the MCP server. This allows for dynamic interaction between the language model and external tools or data sources. After each user message, the LLM will determine whether to call a tool (in this example, a document summarizer) or respond normally.
->>>>>>> intern-dev

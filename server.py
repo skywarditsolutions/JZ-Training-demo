@@ -10,17 +10,16 @@ import mcp.types as types
 from mcp.server import NotificationOptions, Server
 import mcp.server.stdio
 from anthropic import AnthropicBedrock
-<<<<<<< HEAD
+
 from datetime import datetime 
-=======
+
 from datetime import datetime #This is a test
->>>>>>> intern-dev
+
 
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# hello! nathan is very good at eating food :) he is the best
 
 # Only (?) supported model
 model_name="anthropic.claude-3-5-sonnet-20240620-v1:0"
