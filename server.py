@@ -25,14 +25,6 @@ mcp = FastMCP("Comparison")
 
 
 @mcp.tool()
-async def summarize_document(document_content: str) -> str:
-    """Analyze Text content
-    Args:
-        document_content: The content of the document to analyze
-
-    Returns:
-        LLM response obj with summary of the document
-    """
 async def comparison_documents(document_content: str, truthdoc_content: str) -> str:
     """Analyze Text content"""
 
@@ -121,39 +113,42 @@ async def list_tools() -> list[types.Tool]:
         )
     ]
 # For comparison tool
-types.Tool(
-    name="comparison_documents",
-    description="Analyze texts and identify and show differences",
-    inputSchema={
-        "name": "comparison_documents",
-        "required": ["document_content", "truthdoc_content"],  # Both required
-        "properties": {
-            "truthdoc_content": {
-                "type": "string",
-                "description": "The verified document that the document_content will be compared to"
-            },
-            "document_content": {
-                "type": "string",
-                "description": "The content of the document to analyze"
+    return [
+        types.Tool(
+            name="comparison_documents",
+            description="Analyze texts and identify and show differences",
+            inputSchema={
+                "name": "comparison_documents",
+                "required": ["document_content", "truthdoc_content"],  # Both required
+                "properties": {
+                    "truthdoc_content": {
+                        "type": "string",
+                        "description": "The verified document that the document_content will be compared to"
+                    },
+                    "document_content": {
+                        "type": "string",
+                        "description": "The content of the document to analyze"
+                    }
+                }
             }
-        }
-    }
-),
-# For summarize tool
-types.Tool(
-    name="summarize_document",  # Fix name to match function
-    description="Analyze and summarize document content",
-    inputSchema={
-        "name": "summarize_document",
-        "required": ["document_content"],
-        "properties": {
-            "document_content": {
-                "type": "string",
-                "description": "The content of the document to analyze"
+        ),
+    ]
+    return [
+    # For summarize tool
+        types.Tool(
+            name="summarize_document",  # Fix name to match function
+            description="Analyze and summarize document content",
+            inputSchema={
+                "name": "summarize_document",
+                "required": ["document_content"],
+                "properties": {
+                    "document_content": {
+                        "type": "string",
+                        "description": "The content of the document to analyze"
+                    }
+                }
             }
-        }
-    }
-)
-
+        )
+    ]
 if __name__ == "__main__":
     mcp.run(transport="stdio")

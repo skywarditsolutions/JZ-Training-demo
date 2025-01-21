@@ -102,13 +102,12 @@ class MCPClient:
         await self.session.initialize()
 
         response = await self.session.list_tools()
-        formatted_tools = reformat_tools_description(response.tools)
+        formatted_tools = reformat_tools_description_for_anthropic(response.tools)
         self.tools = formatted_tools
-        #self.tools = test_dummy_tools()
-        #self.tools = test_dummy_tools()
+     
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, tool_call):
+    async def call_tools(self, tool_call):
         """
         This method handles the tool call from the LLM and passes it to the server
         Args:
@@ -121,18 +120,6 @@ class MCPClient:
         tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
         return tool_result
     
-    async def call_compare_documents_tool(self, tool_call):
-        """
-        This method handles the tool call from the LLM and passes it to the server
-        Args:
-            LLM_tool_call: The tool call from the LLM
-            
-        Returns:
-            tool_call: The tool call response from the MCP server
-        """
-        # call tool over the MCP connection established in connect_to_server, takes in tool name and args
-        tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
-        return tool_result
     
     
     def is_comparison_request(self, user_message: str) -> bool:
@@ -174,7 +161,7 @@ class MCPClient:
                 
         # Check for common two-word phrases
         message = user_message.lower()
-        two_word_phrases = ["main point", "overal idea"]
+        two_word_phrases = ["main point", "overall idea"]
         if any(phrase in message for phrase in two_word_phrases):
             return True
             
@@ -204,15 +191,12 @@ class MCPClient:
         # Send messages to the LLM
         response = self.chat.messages.create(
             model=model_name,
-            model=model_name,
             max_tokens=2048,
             messages=messages,
             tools=self.tools
         )
         return response
-    
-        return response
-    
+        
     def check_tool_call(self, response):
         """
         Check if the response contains a tool call and extract the relevant information.
@@ -221,19 +205,8 @@ class MCPClient:
 
         Returns:
             tool_call: The tool call response from the server
-        Args:
-            response: The full object response from the LLM
-
-        Returns:
-            tool_call: The tool call response from the server
         """
         try:
-            if response.stop_reason == "tool_use":
-                print("type is tool_use")
-                return response.content[1] # response format is [chat_message, tool_call]
-        
-            # return false if no tool call is found
-            return False
             if response.stop_reason == "tool_use":
                 print("type is tool_use")
                 return response.content[1] # response format is [chat_message, tool_call]
@@ -262,7 +235,7 @@ class MCPClient:
                 break
         return lines
     
-    def chat_loop(self):
+    async def chat_loop(self):
         messages = []
         while True:
             user_message = input("User: ")
@@ -288,13 +261,16 @@ class MCPClient:
                 )
                 
                 llm_text_response = response.content[0].text.strip()
+                print (response)
                 print("LLM: ", llm_text_response)
                 messages.append({"role": "assistant", "content": llm_text_response})
                 
                 # Check for tool call
                 tool_call = self.check_tool_call(response)
+                print(tool_call)
                 if tool_call:
-                    tool_response = await self.call_compare_documents_tool(tool_call)
+
+                    tool_response = await self.call_tools(tool_call)
                     summary = tool_response.content[0].text
                     print("Tool summary: ", summary)
                     # Add tool response to chat history
@@ -323,7 +299,7 @@ class MCPClient:
                 # Check for tool call
                 tool_call = self.check_tool_call(response)
                 if tool_call:
-                    tool_response = await self.call_summarize_document_tool(tool_call)
+                    tool_response = await self.call_tools(tool_call)
                     summary = tool_response.content[0].text
                     print("Tool summary: ", summary)
                     # Add tool response to chat history
@@ -353,21 +329,12 @@ def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
     Returns:
         reformatted_tools: The list of reformatted tools with snake_case input_schema
     """
-    """
-    Reformat the tools description for anthropic
-    Args:
-        tools: The list of tools to be reformatted
-
-    Returns:
-        reformatted_tools: The list of reformatted tools with snake_case input_schema
-    """
     # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
     reformatted_tools = []
     for tool in tools:
         current_tool = {
             "name": tool.name,
             "description": tool.description,
-            "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic can use it
             "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic can use it
         }
         reformatted_tools.append(current_tool)
