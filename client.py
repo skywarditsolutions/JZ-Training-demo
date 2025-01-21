@@ -17,9 +17,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-
-load_dotenv()
-
 from anthropic import AnthropicBedrock
 
 import mcp.types as types
@@ -249,10 +246,10 @@ class MCPClient:
             return None
 
     def get_user_input(self):
-        """parse multiline input"""
-        # TODO: finish this function
-        """parse multiline input"""
-        # TODO: finish this function
+        # """parse multiline input"""
+        # # TODO: finish this function
+        # """parse multiline input"""
+        # # TODO: finish this function
         lines = []
         print("User: ")
 
