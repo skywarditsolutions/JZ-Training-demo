@@ -83,8 +83,133 @@ class MCPClient:
         tool_result = await self.session.call_tool(tool_call.name, tool_call.input)
         return tool_result
     
+    def get_current_datetime(self, request_type="both", timezone=None):
+        """
+        Get the current date and/or time in the specified timezone.
+        Defaults to system's local timezone if no timezone is provided.
+        """
+        time_format = "HH:mm:ss" if self.time_format_24hr else "hh:mm:ss A"
+        date_format = "MMMM DD, YYYY"
+
+        try:
+            # 🌍 Use detected timezone or system timezone
+            if timezone:
+                current_time = arrow.now(timezone)
+            else:
+                current_time = arrow.now()
+
+            # 🕒 Format the response
+            if request_type == "time":
+                return f"🕒 Local Time: {current_time.format(time_format)}"
+            elif request_type == "date":
+                return f"📅 Local Date: {current_time.format(date_format)}"
+            else:
+                return (f"📅 Local Date: {current_time.format(date_format)}\n"
+                        f"🕒 Local Time: {current_time.format(time_format)}")
+
+        except Exception as e:
+            return f"❌ Error fetching time: {e}"
+
+
+    def is_time_or_date_request(self, user_message: str) -> bool:
+        """Detect if the user is asking for the current date and/or time."""
+
+        # Define common time/date request phrases
+        time_date_phrases = [
+            "what time is it",
+            "what is the time",
+            "give me the time",
+            "tell me the time",
+            "current time",
+            "want the date",
+            "want the time",
+            "want the time and date ",
+            "what is the date",
+            "give me the date",
+            "tell me the date",
+            "give me time",
+            "give me date",
+            "give me time and date",
+            "current date",
+            "what is the date and time",
+            "give me the date and time",
+            "can you tell me the time",
+            "can you tell me the date",
+            "date and time",
+            "can i get the date",
+            "can i get the time",
+            "can i get the date and time",
+            "can i get the time and date"
+        ]
+
+        # Lowercase the input for consistent comparison
+        user_message = user_message.lower().strip()
+
+        # Return True if any of the phrases match
+        return any(phrase in user_message for phrase in time_date_phrases)
+
+    def detect_datetime_request(self, user_message: str) -> str:
+        """
+        Detect if the user is asking for the date, time, or both.
+        Returns: 'time', 'date', 'both', or 'none'
+        """
+        message = user_message.lower()
+        
+        time_keywords = ["time", "current time", "what time", "tell me the time"]
+        date_keywords = ["date", "current date", "what date", "tell me the date"]
+        both_keywords = ["date and time", "time and date", "current date and time"]
+        
+        if any(phrase in user_message for phrase in both_keywords):
+            return "both"
+        elif any(phrase in user_message for phrase in time_keywords):
+            return "time"
+        elif any(phrase in user_message for phrase in date_keywords):
+            return "date"
+        else:
+            return "none"
+
+    def detect_timezone(self, user_message: str) -> Optional[str]:
+        """
+        Detect the timezone from the user's input using geolocation.
+        """
+        try:
+            # Clean the user input for better detection
+            location_query = re.sub(r'[^a-zA-Z\s]', '', user_message).strip().lower()
+
+            # Extract the likely city name (assumes 'in <city>' structure)
+            city_match = re.search(r'in (.+)', location_query)
+            city_name = city_match.group(1) if city_match else location_query
+
+            print(f"🔎 Searching for location: {city_name}")
+
+            # Attempt to geocode the extracted city name
+            location = self.geolocator.geocode(city_name, timeout=10)  # Increase timeout
+
+            if location:
+                # Convert the detected location into a timezone
+                timezone = self.tz_finder.timezone_at(lng=location.longitude, lat=location.latitude)
+                if timezone:
+                    print(f"🛰️ Detected Timezone: {timezone}")
+                    return timezone
+                else:
+                    print("⚠️ Could not determine timezone from coordinates.")
+            else:
+                print("⚠️ Geolocation failed. No result found.")
+
+        except Exception as e:
+            print(f"⚠️ Error detecting timezone: {e}")
+
+        # Fallback to system timezone if detection fails
+        return None
+
+
+    def toggle_time_format(self):
+        """Toggle between 12-hour and 24-hour time formats."""
+        self.time_format_24hr = not self.time_format_24hr
+        mode = "24-hour" if self.time_format_24hr else "12-hour"
+        print(f"✅ Time format switched to {mode} mode.")
     
-    
+
     def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
         This method sends a message to the LLM and returns the response
@@ -168,7 +293,8 @@ class MCPClient:
             user_message = input("User: ").strip()
 
             if user_message.lower() in ["switch to 12-hour", "switch to 24-hour", "switch time format",
-                                        "change time format", "12 hour" "24 hour", "switch format"]:
+                                        "change time format", "12 hour" "24 hour", "switch format", 
+                                        "change format"]:
                 self.toggle_time_format()
                 continue
 

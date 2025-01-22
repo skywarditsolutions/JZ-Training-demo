@@ -18,8 +18,6 @@ from tzlocal import get_localzone_name
 import pytz
 import arrow
 
-=======
->>>>>>> intern-dev
 import mcp.types as types
 
 
@@ -274,9 +272,26 @@ class MCPClient:
         messages = []
         user_message = input("User: ")
         # have hardcoded news story for now
-        document_content = input("Document to summarize (leave blank for hardcoded news story): ")
+        document_content = input("Document to summarize (leave blank for hardcoded news story OR time/date requests): ")
 
         while True:
+
+            if user_message.lower() in ["switch to 12-hour", "switch to 24-hour", "switch time format",
+                                     "change time format", "12 hour", "24 hour", "switch format", "change format"
+                                     , "other format", "twelve hour format", "twenty-four hour format"]:
+                self.toggle_time_format()
+                user_message = input("User: ")
+                continue
+
+            # Check for date/time requests
+            datetime_request = self.detect_datetime_request(user_message)
+            if datetime_request != "none":
+                timezone = self.detect_timezone(user_message)
+                datetime_response = self.get_current_datetime(request_type=datetime_request, timezone=timezone)
+                print(f"\n{datetime_response}\n")
+                user_message = input("User: ")
+                continue
+
             # LLM call
             if document_content == "":
                 document_content = fake_news_story # have a hardcoded news story for testing
