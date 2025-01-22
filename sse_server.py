@@ -68,6 +68,10 @@ async def fetch_bitcoin_price()->str:
         print(f"Error: {e}")
         return None
 
+class SummarizeFile(BaseModel):
+    file_name: str = Field(description="The name of the file to summarize")
+    file_content: Optional[str] = Field(None, description="The contents of the file to summarize, will be fetched from the file name if not provided")
+
 class CompareFiles(BaseModel):
     files: list[str] = Field(description="A list of document names")
     file_contents: Optional[list[str]] = Field(None, description="A list of file contents to compare, will be fetched from the file names if not provided")
@@ -96,23 +100,23 @@ async def compare_documents(compare_files: CompareFiles) -> str:
     )
     beginning_comparison = response.content[0].text.split("<comparison>")[1]
     comparison = beginning_comparison.split("</comparison>")[0] # isolate the comparison
-    # TODO error handling
     return comparison
 
 @mcp.tool()
-async def summarize_text(text_content: str) -> str:
+async def summarize_file(uploaded_file: SummarizeFile) -> str:
     """Analyze Text content
     Args:
-        text_content: The content of the text to analyze
+        uploaded_file: The file to summarize
 
     Returns:
         LLM response obj with summary of the document
     """
 
+    print("uploaded_file: ", uploaded_file)
     messages = []
     # claude SDK doesn't let you do system prompt?
     user_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
-    user_prompt += f"\n\nText content: {text_content}"
+    user_prompt += f"\n\nText content: {uploaded_file.file_content}"
     messages.append({"role": "user", "content": user_prompt}) # passing in as user message
     
     # send messages to the LLM
@@ -122,8 +126,10 @@ async def summarize_text(text_content: str) -> str:
         messages=messages
     )
     beginning_summary = response.content[0].text.split("<summary>")[1]
-    summary = beginning_summary.split("</summary>")[0] # isolate the summary
-    # TODO error handling
+    summary = beginning_summary.split("</summary>")[0].strip() # isolate the summary
+
+    print("summary: ", summary)
+    print("summary completed")
     return summary
 
 # modified from fastMCP example
@@ -164,18 +170,9 @@ async def list_tools() -> list[types.Tool]:
             inputSchema=CompareFiles.model_json_schema()
         ),
         types.Tool(
-            name="summarize_text",
-            description="Analyze text and provide a summary",
-            inputSchema={
-                "name": "summarize_text",
-                "required": ["text_content"],
-                "properties": {
-                    "text_content": {
-                        "type": "string",
-                        "description": "The content of the document to analyze"
-                    }
-                }
-            }
+            name="summarize_file",
+            description="Summarize a file's content and return a summary",
+            inputSchema=SummarizeFile.model_json_schema()
         )
     ]
 
