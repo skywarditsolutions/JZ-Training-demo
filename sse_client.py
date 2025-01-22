@@ -35,7 +35,6 @@ class SSE_MCP_Client:
 
     async def get_tools(self):
         """Retrieve available tools from server and reformat for Anthropic compatibility"""
-        # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
         response = await self.session.list_tools()
         print(f"\nAvailable Tools from MCP Server: {[tool.name for tool in response.tools]}\n")
         return response.tools
@@ -53,13 +52,13 @@ def reformat_tools_description_for_anthropic_bedrock(tools: list[types.Tool]):
     Returns:
         reformatted_tools: The list of reformatted tools with snake_case input_schema
     """
-    # MCP library changes the tool name to camelCase, so we need to reformat it so anthropic can use it
+    # MCP library changes the tool name to camelCase, Anthropic[Bedrock] requires snake_case, but boto3 requires camelCase
     reformatted_tools = []
     for tool in tools:
         current_tool = {
             "name": tool.name,
             "description": tool.description,
-            "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic can use it
+            "input_schema": tool.inputSchema, # changing camelCase to snake_case so anthropic[bedrock] can use it
         }
         reformatted_tools.append(current_tool)
 
@@ -78,7 +77,9 @@ def check_tool_call(response):
     try:
         if response.stop_reason == "tool_use":
             print("type is tool_use")
-            return response.content[1] # response.content format is [chat_message, tool_call]
+            # response.content format is [chat_message, tool_call]
+            # TODO handle multi-tool calls
+            return response.content[1] 
     
         # return false if no tool call is found
         return False
@@ -86,20 +87,6 @@ def check_tool_call(response):
     except Exception as e:
         print(f"Error checking tool call: {e}")
         return None
-
-def get_user_input():
-    """parse multiline input"""
-    # TODO: finish this function
-    lines = []
-    print("User: ")
-
-    while True:
-        try: 
-            line = input()
-            lines.append(line)
-        except EOFError:
-            break
-    return lines
 
 
 fake_news_story = """

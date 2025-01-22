@@ -1,4 +1,4 @@
-
+from pydantic import BaseModel, Field
 from mcp.server.fastmcp import FastMCP
 from typing import Optional
 #import PyPDF2
@@ -68,11 +68,15 @@ async def fetch_bitcoin_price()->str:
         print(f"Error: {e}")
         return None
 
+class CompareFiles(BaseModel):
+    files: list[str] = Field(description="A list of document names")
+    file_contents: Optional[list[str]] = Field(None, description="A list of file contents to compare, will be fetched from the file names if not provided")
+
 @mcp.tool()
-async def summarize_document(document_content: str) -> str:
-    """Analyze Text content
+async def compare_documents(compare_files: CompareFiles) -> str:
+    """
     Args:
-        document_content: The content of the document to analyze
+        compare_files: A list of documents to compare
 
     Returns:
         LLM response obj with summary of the document
@@ -80,8 +84,8 @@ async def summarize_document(document_content: str) -> str:
 
     messages = []
     # claude SDK doesn't let you do system prompt?
-    user_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
-    user_prompt += f"\n\nDocument content: {document_content}"
+    user_prompt = "You are a helpful assistant that compares documents. You provide a thorough comparison of the documents and highlight anything surprising or interesting. Return the comparison in <comparison></comparison> tags."
+    user_prompt += f"\n\nDocuments: {"\n\n".join(compare_files.file_contents)}"
     messages.append({"role": "user", "content": user_prompt}) # passing in as user message
     
     # send messages to the LLM
@@ -90,9 +94,33 @@ async def summarize_document(document_content: str) -> str:
         max_tokens=2048,
         messages=messages
     )
-    # originally wanted to use re.search(?<=<summary>)(.*?)(?=</summary>)
-    # regex would cause the process to hang on the LLM call (too computationally expensive?), splitting the string is a quick fix
-    # LLM returns a string with <summary> and </summary> tags, so we split the string twice to isolate the summary
+    beginning_comparison = response.content[0].text.split("<comparison>")[1]
+    comparison = beginning_comparison.split("</comparison>")[0] # isolate the comparison
+    # TODO error handling
+    return comparison
+
+@mcp.tool()
+async def summarize_text(text_content: str) -> str:
+    """Analyze Text content
+    Args:
+        text_content: The content of the text to analyze
+
+    Returns:
+        LLM response obj with summary of the document
+    """
+
+    messages = []
+    # claude SDK doesn't let you do system prompt?
+    user_prompt = "You are a helpful assistant that summarizes documents. You provide a thorough summary of the document and highlight anything surprising or interesting. Return the summary in <summary></summary> tags."
+    user_prompt += f"\n\nText content: {text_content}"
+    messages.append({"role": "user", "content": user_prompt}) # passing in as user message
+    
+    # send messages to the LLM
+    response = chat.messages.create(
+                model=model_name,
+        max_tokens=2048,
+        messages=messages
+    )
     beginning_summary = response.content[0].text.split("<summary>")[1]
     summary = beginning_summary.split("</summary>")[0] # isolate the summary
     # TODO error handling
@@ -131,23 +159,20 @@ async def list_tools() -> list[types.Tool]:
             }
         ),
         types.Tool(
-            name="summarize_document",
+            name="compare_files",
+            description="Compare files and provide a comparison",
+            inputSchema=CompareFiles.model_json_schema()
+        ),
+        types.Tool(
+            name="summarize_text",
             description="Analyze text and provide a summary",
             inputSchema={
-                "name": "summarize_document",
-                "required": ["document_content"],
+                "name": "summarize_text",
+                "required": ["text_content"],
                 "properties": {
-                    "document_content": {
+                    "text_content": {
                         "type": "string",
                         "description": "The content of the document to analyze"
-                    },
-                    "user_message": {
-                        "type": "string",
-                        "description": "The user's message"
-                    },
-                    "messages": {
-                        "type": "array",
-                        "description": "The messages to send to the model"
                     }
                 }
             }
