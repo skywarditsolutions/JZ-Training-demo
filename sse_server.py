@@ -72,9 +72,13 @@ class SummarizeFile(BaseModel):
     file_name: str = Field(description="The name of the file to summarize")
     file_content: Optional[str] = Field(None, description="The contents of the file to summarize, will be fetched from the file name if not provided")
 
+
+class DbFiles(BaseModel):
+    name: str = Field(description="The document file name")
+    content: Optional[str] = Field(None, description="The text content of the file to compare, will be fetched from teh database if not provided")
+
 class CompareFiles(BaseModel):
-    files: list[str] = Field(description="A list of document names")
-    file_contents: Optional[list[str]] = Field(None, description="A list of file contents to compare, will be fetched from the file names if not provided")
+    files: list[DbFiles]
 
 @mcp.tool()
 async def compare_documents(compare_files: CompareFiles) -> str:
@@ -89,7 +93,7 @@ async def compare_documents(compare_files: CompareFiles) -> str:
     messages = []
     # claude SDK doesn't let you do system prompt?
     user_prompt = "You are a helpful assistant that compares documents. You provide a thorough comparison of the documents and highlight anything surprising or interesting. Return the comparison in <comparison></comparison> tags."
-    user_prompt += f"\n\nDocuments: {"\n\n".join(compare_files.file_contents)}"
+    user_prompt += f"\n\nDocuments: {'\n\n'.join(doc.content for doc in compare_files.files if doc.content)}"
     messages.append({"role": "user", "content": user_prompt}) # passing in as user message
     
     # send messages to the LLM
@@ -157,6 +161,7 @@ async def list_tools() -> list[types.Tool]:
                 }
             }
         ),
+        # there are at least two ways to define the tool schema, first is manually, second (below) is with a Pydantic model
         types.Tool(
             name="fetch_bitcoin_price",
             description="Fetches the current Bitcoin price from Coingecko",
