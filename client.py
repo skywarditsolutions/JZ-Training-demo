@@ -261,13 +261,13 @@ class MCPClient:
                 )
                 
                 llm_text_response = response.content[0].text.strip()
-                print (response)
+                #print (response)
                 print("LLM: ", llm_text_response)
                 messages.append({"role": "assistant", "content": llm_text_response})
                 
                 # Check for tool call
                 tool_call = self.check_tool_call(response)
-                print(tool_call)
+                #print(tool_call)
                 if tool_call:
 
                     tool_response = await self.call_tools(tool_call)
