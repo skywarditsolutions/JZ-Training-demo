@@ -4,6 +4,11 @@ import os
 import re
 from typing import Optional
 from contextlib import AsyncExitStack
+# get_close_matches
+from difflib import get_close_matches
+import sys
+#allows you to input the file path that you downloaded onto computer
+from pathlib import Path
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -28,15 +33,63 @@ class MCPClient:
         self.exit_stack = AsyncExitStack()
         self.chat = AnthropicBedrock()
         self.tools = []
-    
+        #words that could indicate comparing
+        self.comparison_words = [
+            "compare", "comparison", "difference", "differences", "diff",
+            "contrast", "versus", "vs", "distinction", "distinguish",
+            "analyze", "check", "review", "examine", "look at"
+        ]
+        self.summary_words = [
+            "summarize", "summary", "outline", "overview", "recap",
+            "digest", "brief", "gist", "roundup", "synopsis",
+            "sum up", "wrap up", "highlight", "breakdown", "abstract"
+        ]
+    def get_multiline_input(self, prompt: str) -> str:
+        """
+        Gets single line input from user
+        """
+        try:
+            return input(f"{prompt}: ")
+        except EOFError:
+            return ""
+    def read_file_content(self, file_path: str) -> str:
+        """
+        Reads content from a file, handling different file types (File i/o)
+        """
+        try:
+            file_path = Path(file_path)
+            if not file_path.exists():
+                print(f"Error: File {file_path} does not exist")
+                return ""
+                
+            # reads file content based on extension
+            content = file_path.read_text(encoding='utf-8')
+            return content
+            
+        except Exception as e:
+            print(f"Error reading file: {e}")
+            return ""
+
+    def get_document_input(self, prompt: str) -> str:
+        """
+        Gets document content either from file or direct input
+        """
+        input_type = input(f"{prompt}\nEnter 'file' to provide a file path, or 'text' to enter text directly: ").lower()
+        
+        if input_type == 'file':
+            file_path = input("Enter file path: ")
+            return self.read_file_content(file_path)
+        else:
+            return self.get_multiline_input("Enter your text")
+            
     async def connect_to_server(self, server_script_path: str):
         """Connect to an MCP Server
-        
-        Args: server_script_path (str): The path to the python server script (.py)"""
+           Args: server_script_path (str): The path to the python server script (.py)
+        """
+        #checks for python only
         is_python = server_script_path.endswith(".py")
         if not is_python:
             raise ValueError("Server script must be a Python script (.py)")
-        
         # only python for now
         server_params = StdioServerParameters(
             command="python", args=[server_script_path], env=None
@@ -49,12 +102,12 @@ class MCPClient:
         await self.session.initialize()
 
         response = await self.session.list_tools()
-        formatted_tools = reformat_tools_description(response.tools)
+        formatted_tools = reformat_tools_description_for_anthropic(response.tools)
         self.tools = formatted_tools
-        #self.tools = test_dummy_tools()
+     
         print(f"\nconnected to server with tools: {[tool.name for tool in response.tools]}")
 
-    async def call_summarize_document_tool(self, tool_call):
+    async def call_tools(self, tool_call):
         """
         This method handles the tool call from the LLM and passes it to the server
         Args:
@@ -69,29 +122,73 @@ class MCPClient:
     
     
     
-    def send_message(self, document_content: str, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
+    def is_comparison_request(self, user_message: str) -> bool:
+        """
+        Check if the user's message is requesting a comparison,
+        using fuzzy matching to catch typos and variations
+        """
+        # Convert message to lowercase and split into words
+        user_words = user_message.lower().split()
+        
+        # Check each word in the user's message
+        for word in user_words:
+            # Use get_close_matches to find similar words
+            matches = get_close_matches(word, self.comparison_words, n=1, cutoff=0.8)
+            if matches:
+                return True
+                
+        # Check for common two-word phrases
+        message = user_message.lower()
+        two_word_phrases = ["look at", "side by"]
+        if any(phrase in message for phrase in two_word_phrases):
+            return True
+            
+        return False
+    def is_summarize_request(self, user_message: str) -> bool:
+        """
+        Check if the user's message is requesting a comparison,
+        using fuzzy matching to catch typos and variations
+        """
+        # Convert message to lowercase and split into words
+        user_words = user_message.lower().split()
+        
+        # Check each word in the user's message
+        for word in user_words:
+            # Use get_close_matches to find similar words
+            matches = get_close_matches(word, self.summary_words, n=1, cutoff=0.8)
+            if matches:
+                return True
+                
+        # Check for common two-word phrases
+        message = user_message.lower()
+        two_word_phrases = ["main point", "overall idea"]
+        if any(phrase in message for phrase in two_word_phrases):
+            return True
+            
+        return False
+
+    def send_message(self, document_content: str, truthdoc_content: Optional[str] = None, user_message: Optional[str] = None, messages: Optional[list[dict[str,str]]] = None):
         """
         This method sends a message to the LLM and returns the response
-
-        Args:
-            document_content: The content of the document to be summarized
-            (optional) user_message: The user's message to the LLM
-            (optional) messages: The list of messages of the chat history
-
-        Returns:
-            response: The response from the LLM
         """
-        # if no messages, create a new list and inital chat message
         if not messages:
             messages = []
-            chat_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests.\n\n"
-            chat_prompt += "User request: " + user_message + "\n\n"
-            chat_prompt += "Document content: " + document_content + "\n\n"
-            messages.append({"role": "user", "content": chat_prompt}) # passing in as user message
-        else:
-            messages.append({"role": "user", "content": user_message})
-
-        # send messages to the LLM
+            system_prompt = "You are a helpful assistant, you have the ability to call tools to achieve user requests."
+            messages.append({"role": "user", "content": system_prompt})
+        
+        # Construct the full message with all components
+        full_message = ""
+        if user_message:
+            full_message += f"User request: {user_message}\n\n"
+        if document_content:
+            full_message += f"Document content: {document_content}\n\n"
+        if truthdoc_content:
+            full_message += f"Truth Document content: {truthdoc_content}"
+        
+        # Add the constructed message to conversation history
+        messages.append({"role": "user", "content": full_message})
+        
+        # Send messages to the LLM
         response = self.chat.messages.create(
             model=model_name,
             max_tokens=2048,
@@ -99,7 +196,7 @@ class MCPClient:
             tools=self.tools
         )
         return response
-    
+        
     def check_tool_call(self, response):
         """
         Check if the response contains a tool call and extract the relevant information.
@@ -122,46 +219,103 @@ class MCPClient:
             return None
 
     def get_user_input(self):
-        """parse multiline input"""
-        # TODO: finish this function
+        # """parse multiline input"""
+        # # TODO: finish this function
+        # """parse multiline input"""
+        # # TODO: finish this function
         lines = []
         print("User: ")
 
         while True:
             try: 
-                line = input()
-                lines.append(line)
+                return input("User: ")
+                # line = input()
+                # lines.append(line)
             except EOFError:
                 break
         return lines
     
-    def chat_loop(self):
+    async def chat_loop(self):
         messages = []
-        user_message = input("User: ")
-        # have hardcoded news story for now
-        document_content = input("Document to summarize (leave blank for hardcoded news story): ")
-
         while True:
-            # LLM call
-            if document_content == "":
-                document_content = fake_news_story # hardcoding a news story for convenience
-            if user_message == "": # if user presses enter without typing anything, continue
-                continue
-            # send inputs to the LLM and get response
-            response = self.send_message(user_message=user_message, document_content=document_content, messages=messages)
-            llm_text_response = response.content[0].text.strip() # final assistant content cannot end with trailing whitespace
-            print("LLM: ", llm_text_response)
-            messages.append({"role": "assistant", "content": llm_text_response}) 
-            # check if the response contains a tool call
-            tool_call = self.check_tool_call(response)
-            if tool_call:
-                tool_response = await self.call_summarize_document_tool(tool_call)
-                summary = tool_response.content[0].text
-                print("summary: ", summary)
-                messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})# final assistant content cannot end with trailing whitespace
-            else:
-                messages.append({"role": "assistant", "content": llm_text_response})
             user_message = input("User: ")
+            
+            if self.is_comparison_request(user_message):
+                # Get document contents using new input methods
+                document_content = self.get_document_input("Document")
+                if not document_content:
+                    print("No content provided for first document. Please try again.")
+                    continue
+                    
+                truthdoc_content = self.get_document_input("Truth Document")
+                if not truthdoc_content:
+                    print("No content provided for second document. Please try again.")
+                    continue
+                
+                # Send the message without duplicating content
+                response = self.send_message(
+                    document_content=document_content,
+                    truthdoc_content=truthdoc_content,
+                    user_message=user_message,  # Just send original user message
+                    messages=messages
+                )
+                
+                llm_text_response = response.content[0].text.strip()
+                #print (response)
+                print("LLM: ", llm_text_response)
+                messages.append({"role": "assistant", "content": llm_text_response})
+                
+                # Check for tool call
+                tool_call = self.check_tool_call(response)
+                #print(tool_call)
+                if tool_call:
+
+                    tool_response = await self.call_tools(tool_call)
+                    summary = tool_response.content[0].text
+                    print("Tool summary: ", summary)
+                    # Add tool response to chat history
+                    messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})
+                    
+            elif self.is_summarize_request(user_message):
+                document_content = self.get_document_input("Document")
+                if not document_content:
+                    print("No content provided for first document. Please try again.")
+                    continue
+
+                summary_message = f"""
+                    User request: {user_message}
+                    Document content: {document_content}"""
+                
+                response = self.send_message(
+                    document_content=document_content,
+                    user_message=summary_message,
+                    messages=messages
+                )
+                
+                llm_text_response = response.content[0].text.strip()
+                print("LLM: ", llm_text_response)
+                messages.append({"role": "assistant", "content": llm_text_response})
+                
+                # Check for tool call
+                tool_call = self.check_tool_call(response)
+                if tool_call:
+                    tool_response = await self.call_tools(tool_call)
+                    summary = tool_response.content[0].text
+                    print("Tool summary: ", summary)
+                    # Add tool response to chat history
+                    messages.append({"role": "assistant", "content": f"Tool summary: {summary.strip()}"})
+
+            else:
+                # Handle regular conversation
+                response = self.send_message(
+                    document_content="",
+                    truthdoc_content="",
+                    user_message=user_message,
+                    messages=messages
+                )
+                llm_text_response = response.content[0].text.strip()
+                print("LLM: ", llm_text_response)
+                messages.append({"role": "assistant", "content": llm_text_response})
     
     async def cleanup(self):
         await self.exit_stack.aclose()
@@ -189,15 +343,6 @@ def reformat_tools_description_for_anthropic(tools: list[types.Tool]):
 
 def to_kebab_case(camel_str: str) -> str:
     return re.sub(r'(?<!^)(?=[A-Z])', '-', camel_str).lower()
-
-fake_news_story = """
-Gas Flare Bitcoin Miners Cut Methane Emissions in Permian Basin
-MIDLAND, TX - A consortium of Bitcoin mining operations in West Texas reported today that their gas reclamation efforts have prevented over 180,000 metric tons of methane from entering the atmosphere in the past year. By capturing and utilizing natural gas that would otherwise be flared at oil well sites, these mining operations are turning what was once waste into both cryptocurrency and environmental benefits.
-"We're essentially monetizing waste gas while reducing greenhouse gas emissions," explained Sarah Chen, CEO of GreenHash Solutions, one of the leading companies in the initiative. "The same energy that would have been burned off into the atmosphere is now powering our mining rigs, and we're seeing real environmental impact."
-Independent environmental assessments confirm that these operations have reduced methane emissions equivalent to removing 40,000 cars from the road. The success has drawn attention from other oil-producing regions looking to replicate the model.
-Local officials report that the program has also created 75 new technical jobs in the region, with plans to expand operations to additional well sites in the coming months.
-"""
-
 
 async def main():
     if len(sys.argv) < 2:
