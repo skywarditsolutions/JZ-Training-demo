@@ -2,6 +2,8 @@
 
 This repository demonstrates the use of Anthropic's Model Context Protocol (MCP) with two examples: one using stdio and another using independent client and server connected via Server-Sent Events (SSE).
 
+![mcp diagram](diagram.png)
+
 ## Prerequisites
 
 - Ubuntu operating system or wsl
